@@ -52,9 +52,19 @@
       "nsis": {
         "installMode": "currentUser"
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
-    "opener": {}
+    "opener": {},
+    "updater": {
+      "endpoints": [
+        "https://github.com/XRTM8/Otium-Downloader/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0MjQ2RTRENjMyMDE4RUMKUldUc0dDQmpUVzRrWkNnc3J5VS9mVTFIdVlMMVpUU2hUZWRlSHRaRE5BVnJoeG13aCtkUGNtOHEK",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

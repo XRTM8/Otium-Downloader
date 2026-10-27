@@ -3,5 +3,7 @@ dist
 dist-ssr
 *.local
 src-tauri/target
+release/
+*.key
 .DS_Store
 Thumbs.db

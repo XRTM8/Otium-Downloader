@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.0.0 (must match package.json)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '22'
+
+jobs:
+  verify:
+    name: Verify shared version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check version and tag
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          node scripts/check-version.mjs "$RELEASE_TAG"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+
+  windows:
+    name: Windows installer and portable
+    needs: verify
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Build NSIS installer and portable EXE
+        run: npm run tauri:build -- --bundles nsis
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Stage canonical artifacts
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force release | Out-Null
+
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if (-not $setup) { throw 'No NSIS installer was produced.' }
+
+          $portable = 'src-tauri/target/release/otium_downloader.exe'
+          if (-not (Test-Path $portable)) {
+            $candidate = Get-ChildItem src-tauri/target/release/*.exe | Where-Object { $_.Name -notlike '*-setup*' -and $_.Name -notlike '*.build*' } | Select-Object -First 1
+            if ($candidate) { $portable = $candidate.FullName }
+            else { throw 'No portable EXE was produced.' }
+          }
+
+          Copy-Item $setup.FullName "release/Otium_Downloader_${env:VERSION}_x64-setup.exe"
+          Copy-Item $portable "release/otium-downloader-${env:VERSION}-portable.exe"
+
+          $signature = "$($setup.FullName).sig"
+          if (Test-Path $signature) {
+            Copy-Item $signature "release/Otium_Downloader_${env:VERSION}_x64-setup.exe.sig"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish release feed
+    needs: [verify, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: upload
+          merge-multiple: true
+
+      - name: Generate latest.json and checksums
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+          TAG: ${{ needs.verify.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node scripts/generate-latest-json.mjs \
+            --tag "$TAG" \
+            --out-dir upload \
+            --installer "upload/Otium_Downloader_${VERSION}_x64-setup.exe" \
+            --portable "upload/otium-downloader-${VERSION}-portable.exe"
+
+          cd upload
+          sha256sum * > SHA256SUMS.txt
+          cd ..
+
+      - name: Create release notes
+        run: |
+          cat > release-notes.md << 'EOF'
+          # Otium Downloader v${{ needs.verify.outputs.version }}
+
+          Sovereign, high-performance multi-segment download accelerator for Windows.
+
+          ### Highlights
+          - **Multi-Segment Parallel Range Engine:** Splits files across concurrent HTTP range requests to maximize download throughput.
+          - **Telemetry-Free & 100% Local:** No cloud servers, no account login, zero tracking.
+          - **Visual Chunk Matrix:** Real-time visual matrix displaying each stream's progress and speed.
+          - **Integrity Checks:** Instant automated SHA-256 hash checksum verification.
+          - **Resilient Pause & Resume:** Robust recovery on network disconnects.
+          - **Bilingual Interface:** English and Arabic with native RTL support.
+          - **GPL-3.0 Licensed:** Free software forever.
+          EOF
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify.outputs.tag }}
+          name: Otium Downloader v${{ needs.verify.outputs.version }}
+          body_path: release-notes.md
+          files: upload/*
+          fail_on_unmatched_files: true
+          make_latest: true
