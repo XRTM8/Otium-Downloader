@@ -1,0 +1,28 @@
+[package]
+name = "otium_downloader"
+version = "1.0.0"
+description = "Otium Downloader — Sovereign, High-Performance Multi-Segment Download Accelerator"
+authors = ["XRTM8"]
+edition = "2021"
+rust-version = "1.80"
+license = "GPL-3.0-or-later"
+
+[lib]
+name = "otium_downloader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.5" }
+tauri-plugin-opener = "2"
+
+[profile.release]
+strip = "symbols"
+lto = "thin"
+codegen-units = 1
+opt-level = "s"
