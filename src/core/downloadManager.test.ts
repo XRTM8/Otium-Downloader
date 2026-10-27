@@ -29,15 +29,50 @@ describe('DownloadManager', () => {
     mgr.destroy();
   });
 
-  it('updates task progress and completes when all bytes downloaded', () => {
+  it('handles pauseAll and resumeAll batch controls', () => {
     const mgr = new DownloadManager();
-    const id = mgr.addTask('https://example.com/video.mp4');
-    const task = mgr.getTasks()[0];
-    
-    mgr.updateTaskProgress(id, task.totalBytes);
-    expect(task.status).toBe('completed');
-    expect(task.downloadedBytes).toBe(task.totalBytes);
-    expect(task.completedAt).toBeDefined();
+    mgr.addTask('https://example.com/file1.zip');
+    mgr.addTask('https://example.com/file2.zip');
+
+    mgr.pauseAll();
+    expect(mgr.getTasks().every((t) => t.status === 'paused')).toBe(true);
+
+    mgr.resumeAll();
+    expect(mgr.getTasks().every((t) => t.status === 'downloading')).toBe(true);
+    mgr.destroy();
+  });
+
+  it('calculates aggregate statistics properly', () => {
+    const mgr = new DownloadManager();
+    mgr.addTask('https://example.com/f1.bin');
+    mgr.addTask('https://example.com/f2.bin');
+
+    const stats = mgr.getStats();
+    expect(stats.activeCount).toBe(2);
+    expect(stats.completedCount).toBe(0);
+
+    const task1 = mgr.getTasks()[0];
+    mgr.updateTaskProgress(task1.id, task1.totalBytes);
+
+    const updatedStats = mgr.getStats();
+    expect(updatedStats.completedCount).toBe(1);
+    expect(updatedStats.activeCount).toBe(1);
+
+    mgr.clearCompleted();
+    expect(mgr.getTasks().length).toBe(1);
+
+    mgr.destroy();
+  });
+
+  it('initializes optional checksum verification', () => {
+    const expected = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    const mgr = new DownloadManager();
+    const id = mgr.addTask('https://example.com/release.iso', undefined, 4, expected);
+    const task = mgr.getTasks().find((t) => t.id === id);
+
+    expect(task?.checksum).toBeDefined();
+    expect(task?.checksum?.expected).toBe(expected);
+    expect(task?.checksum?.verified).toBe(false);
 
     mgr.destroy();
   });

@@ -59,6 +59,8 @@ export function App() {
           onRemove={(id) => downloadManager.removeTask(id)}
           onClearCompleted={() => downloadManager.clearCompleted()}
           onOpenAddModal={() => setIsAddModalOpen(true)}
+          onPauseAll={() => downloadManager.pauseAll()}
+          onResumeAll={() => downloadManager.resumeAll()}
         />
       </main>
 
