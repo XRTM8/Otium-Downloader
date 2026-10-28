@@ -18,10 +18,22 @@ export class DownloadManager {
   private listeners: Set<() => void> = new Set();
   private activeInterval: number | null = null;
   private tauriUnlisten: (() => void) | null = null;
+  private defaultDownloadDir: string | null = null;
 
   constructor() {
     this.startTelemetryLoop();
     this.initTauriListeners();
+    this.initDefaultDirectory();
+  }
+
+  private async initDefaultDirectory() {
+    if (!isTauri()) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      this.defaultDownloadDir = await invoke<string>('get_default_download_directory');
+    } catch {
+      // Running in web or fallback mode
+    }
   }
 
   private async initTauriListeners() {
@@ -106,6 +118,10 @@ export class DownloadManager {
 
     const chunks = calculateSegments(totalBytes, segmentCount);
 
+    const baseDir = this.defaultDownloadDir || 'Downloads';
+    const separator = baseDir.includes('\\') ? '\\' : '/';
+    const initialPath = `${baseDir}${separator}${filename}`;
+
     const task: DownloadTask = {
       id,
       url,
@@ -117,7 +133,7 @@ export class DownloadManager {
       etaSeconds: 0,
       chunks,
       createdAt: Date.now(),
-      savePath: `Downloads/${filename}`,
+      savePath: initialPath,
       checksum: expectedSha256?.trim()
         ? {
             algorithm: 'sha256',
@@ -140,7 +156,9 @@ export class DownloadManager {
           }
           if (probeData?.suggested_filename && !customFilename?.trim()) {
             task.filename = probeData.suggested_filename;
-            task.savePath = `Downloads/${task.filename}`;
+            const currentBase = this.defaultDownloadDir || 'Downloads';
+            const sep = currentBase.includes('\\') ? '\\' : '/';
+            task.savePath = `${currentBase}${sep}${task.filename}`;
           }
           this.notify();
           await this.startNativeDownload(task);
@@ -157,26 +175,46 @@ export class DownloadManager {
     if (!isTauri()) return;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
+      const destinationPath = task.savePath || task.filename;
 
-      // Launch all segments concurrently
-      const promises = task.chunks.map((chunk) =>
+      // 1. Prepare target file & directory
+      await invoke('prepare_download_file', {
+        destinationPath,
+        totalBytes: task.totalBytes > 0 ? task.totalBytes : 0
+      });
+
+      // 2. Launch segments that are not yet finished
+      const unfinishedChunks = task.chunks.filter((c) => c.status !== 'completed');
+
+      const promises = unfinishedChunks.map((chunk) =>
         invoke('download_segment', {
           taskId: task.id,
           url: task.url,
-          destinationPath: task.savePath || task.filename,
+          destinationPath,
           startByte: chunk.startByte,
           endByte: chunk.endByte,
+          currentDownloaded: chunk.downloaded || 0,
           segmentIndex: chunk.index
         })
       );
 
       await Promise.all(promises);
 
-      // Verify checksum if supplied
+      // Guard: if task was paused/cancelled while downloading, don't finalize
+      if (task.status !== 'downloading') {
+        return;
+      }
+
+      const allDone = task.chunks.every((c) => c.status === 'completed');
+      if (!allDone) {
+        return;
+      }
+
+      // 3. Verify checksum if supplied
       if (task.checksum?.expected) {
         try {
           const actualHash = await invoke<string>('verify_file_sha256', {
-            filePath: task.savePath || task.filename
+            filePath: destinationPath
           });
           task.checksum.actual = actualHash.toLowerCase();
           task.checksum.verified = task.checksum.actual === task.checksum.expected;
@@ -238,6 +276,11 @@ export class DownloadManager {
       task.status = 'paused';
       task.speedBytesPerSec = 0;
       task.etaSeconds = 0;
+      if (isTauri()) {
+        import('@tauri-apps/api/core').then(({ invoke }) => {
+          invoke('cancel_task', { taskId: id }).catch(() => {});
+        });
+      }
       this.notify();
     }
   }
@@ -256,9 +299,7 @@ export class DownloadManager {
   public pauseAll() {
     for (const task of this.tasks.values()) {
       if (task.status === 'downloading') {
-        task.status = 'paused';
-        task.speedBytesPerSec = 0;
-        task.etaSeconds = 0;
+        this.pauseTask(task.id);
       }
     }
     this.notify();
@@ -267,13 +308,18 @@ export class DownloadManager {
   public resumeAll() {
     for (const task of this.tasks.values()) {
       if (task.status === 'paused' || task.status === 'error') {
-        task.status = 'downloading';
+        this.resumeTask(task.id);
       }
     }
     this.notify();
   }
 
   public removeTask(id: string) {
+    if (isTauri()) {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        invoke('cancel_task', { taskId: id }).catch(() => {});
+      });
+    }
     this.tasks.delete(id);
     this.notify();
   }

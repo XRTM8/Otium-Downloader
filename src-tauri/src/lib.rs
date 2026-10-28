@@ -1,11 +1,45 @@
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::Path;
-use tauri::{AppHandle, Emitter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use tokio::sync::RwLock;
+
+#[derive(Default)]
+pub struct TaskManager {
+    cancellations: RwLock<HashMap<String, Arc<AtomicBool>>>,
+}
+
+impl TaskManager {
+    pub async fn get_or_create_token(&self, task_id: &str) -> Arc<AtomicBool> {
+        let mut map = self.cancellations.write().await;
+        if let Some(token) = map.get(task_id) {
+            if token.load(Ordering::Relaxed) {
+                let new_token = Arc::new(AtomicBool::new(false));
+                map.insert(task_id.to_string(), new_token.clone());
+                return new_token;
+            }
+            token.clone()
+        } else {
+            let token = Arc::new(AtomicBool::new(false));
+            map.insert(task_id.to_string(), token.clone());
+            token
+        }
+    }
+
+    pub async fn cancel(&self, task_id: &str) {
+        let map = self.cancellations.read().await;
+        if let Some(token) = map.get(task_id) {
+            token.store(true, Ordering::Relaxed);
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UrlProbeResult {
@@ -28,15 +62,13 @@ pub struct SegmentProgressEvent {
 #[tauri::command]
 async fn probe_url(url: String) -> Result<UrlProbeResult, String> {
     let client = reqwest::Client::builder()
-        .user_agent("OtiumDownloader/1.0 (+https://github.com/XRTM8/Otium-Downloader)")
+        .user_agent("OtiumDownloader/1.2 (+https://github.com/XRTM8/Otium-Downloader)")
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Try HEAD request first
     let response = match client.head(&url).send().await {
         Ok(res) if res.status().is_success() => res,
         _ => {
-            // Fallback: GET with Range 0-0
             client
                 .get(&url)
                 .header(reqwest::header::RANGE, "bytes=0-0")
@@ -56,7 +88,6 @@ async fn probe_url(url: String) -> Result<UrlProbeResult, String> {
         || headers.contains_key(reqwest::header::CONTENT_RANGE);
 
     let content_length = if let Some(cr) = headers.get(reqwest::header::CONTENT_RANGE) {
-        // e.g. "bytes 0-0/10485760"
         cr.to_str()
             .ok()
             .and_then(|s| s.split('/').last())
@@ -91,21 +122,85 @@ async fn probe_url(url: String) -> Result<UrlProbeResult, String> {
 }
 
 #[tauri::command]
+async fn get_default_download_directory(app: AppHandle) -> Result<String, String> {
+    let path = app.path().download_dir().map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn prepare_download_file(
+    destination_path: String,
+    total_bytes: u64,
+) -> Result<(), String> {
+    let path = Path::new(&destination_path);
+    if let Some(parent) = path.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("Failed to create folder structure: {}", e))?;
+    }
+
+    let file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&destination_path)
+        .await
+        .map_err(|e| format!("Failed to open or create file: {}", e))?;
+
+    if total_bytes > 0 {
+        let _ = file.set_len(total_bytes).await;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn cancel_task(
+    state: tauri::State<'_, Arc<TaskManager>>,
+    task_id: String,
+) -> Result<(), String> {
+    state.cancel(&task_id).await;
+    Ok(())
+}
+
+#[tauri::command]
 async fn download_segment(
     app: AppHandle,
+    state: tauri::State<'_, Arc<TaskManager>>,
     task_id: String,
     url: String,
     destination_path: String,
     start_byte: u64,
     end_byte: u64,
+    current_downloaded: u64,
     segment_index: u32,
 ) -> Result<(), String> {
+    let token = state.get_or_create_token(&task_id).await;
+
+    let actual_start = start_byte + current_downloaded;
+    let total_segment_bytes = end_byte.saturating_sub(start_byte) + 1;
+
+    if actual_start > end_byte {
+        let _ = app.emit(
+            "download-progress",
+            SegmentProgressEvent {
+                task_id,
+                segment_index,
+                delta_bytes: 0,
+                downloaded_bytes: total_segment_bytes,
+                total_bytes: total_segment_bytes,
+                is_finished: true,
+            },
+        );
+        return Ok(());
+    }
+
     let client = reqwest::Client::builder()
-        .user_agent("OtiumDownloader/1.0 (+https://github.com/XRTM8/Otium-Downloader)")
+        .user_agent("OtiumDownloader/1.2 (+https://github.com/XRTM8/Otium-Downloader)")
         .build()
         .map_err(|e| e.to_string())?;
 
-    let range_header = format!("bytes={}-{}", start_byte, end_byte);
+    let range_header = format!("bytes={}-{}", actual_start, end_byte);
     let response = client
         .get(&url)
         .header(reqwest::header::RANGE, range_header)
@@ -117,23 +212,32 @@ async fn download_segment(
         return Err(format!("Server returned HTTP {}", response.status()));
     }
 
-    let total_segment_bytes = end_byte.saturating_sub(start_byte) + 1;
+    let path = Path::new(&destination_path);
+    if let Some(parent) = path.parent() {
+        let _ = tokio::fs::create_dir_all(parent).await;
+    }
 
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
+        .truncate(false)
         .open(&destination_path)
         .await
         .map_err(|e| format!("Failed to open destination: {}", e))?;
 
-    file.seek(SeekFrom::Start(start_byte))
+    file.seek(SeekFrom::Start(actual_start))
         .await
         .map_err(|e| format!("Failed to seek offset: {}", e))?;
 
     let mut stream = response.bytes_stream();
-    let mut downloaded = 0u64;
+    let mut downloaded = current_downloaded;
 
     while let Some(chunk_result) = stream.next().await {
+        if token.load(Ordering::Relaxed) {
+            let _ = file.flush().await;
+            return Ok(());
+        }
+
         let chunk = chunk_result.map_err(|e| format!("Stream error: {}", e))?;
         file.write_all(&chunk)
             .await
@@ -159,6 +263,8 @@ async fn download_segment(
         .await
         .map_err(|e| format!("Flush error: {}", e))?;
 
+    let is_done = downloaded >= total_segment_bytes;
+
     let _ = app.emit(
         "download-progress",
         SegmentProgressEvent {
@@ -167,7 +273,7 @@ async fn download_segment(
             delta_bytes: 0,
             downloaded_bytes: downloaded,
             total_bytes: total_segment_bytes,
-            is_finished: true,
+            is_finished: is_done,
         },
     );
 
@@ -237,10 +343,16 @@ async fn open_destination_folder(file_path: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let task_manager = Arc::new(TaskManager::default());
+
     tauri::Builder::default()
+        .manage(task_manager)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             probe_url,
+            get_default_download_directory,
+            prepare_download_file,
+            cancel_task,
             download_segment,
             verify_file_sha256,
             open_destination_folder
