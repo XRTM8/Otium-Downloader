@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  ArrowDownToLine,
   Globe,
   Plus,
   Settings2,
@@ -10,6 +9,7 @@ import {
   ShieldAlert,
   FolderOpen
 } from 'lucide-react';
+import { OtiumLogo } from './OtiumLogo';
 import type { DownloadStats } from '../types/downloader';
 import { formatSpeed, formatBytes } from '../core/segmentation';
 import { fetchReleaseInfo, isNewerVersion } from '../core/updates/releaseFeed';
@@ -97,8 +97,8 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           {/* Brand Identity */}
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[#00e599] shadow-sm">
-              <ArrowDownToLine className="w-3.5 h-3.5" />
+            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_12px_rgba(0,229,153,0.15)]">
+              <OtiumLogo className="w-4 h-4" glow />
             </div>
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-sm text-zinc-100 tracking-tight">Otium</span>
@@ -111,18 +111,27 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Live Throughput Pill */}
           <div className="flex items-center gap-2">
             {stats.currentTotalSpeed > 0 ? (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400 animate-in-fade">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00e599] animate-pulse" />
-                <span className="font-semibold">{formatSpeed(stats.currentTotalSpeed)}</span>
-                <span className="text-emerald-500/40">|</span>
-                <span className="text-emerald-300/80 text-[11px]">{stats.activeCount} {isAr ? 'نشط' : 'active'}</span>
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-mono text-emerald-400 animate-in-fade shadow-[0_0_12px_rgba(0,229,153,0.12)]">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e599]"></span>
+                </span>
+                <span className="font-semibold tabular-nums tracking-tight">{formatSpeed(stats.currentTotalSpeed)}</span>
+                <span className="text-emerald-500/40">•</span>
+                <span className="text-emerald-300/80 text-[11px] font-normal">{stats.activeCount} {isAr ? 'نشط' : 'active'}</span>
               </div>
             ) : stats.completedCount > 0 ? (
-              <div className="hidden sm:flex items-center gap-1.5 text-xs font-mono text-zinc-400">
-                <span>{isAr ? 'المحمّل:' : 'Total:'}</span>
-                <span className="text-zinc-300 font-medium">{formatBytes(stats.totalBytesDownloaded)}</span>
+              <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-xs font-mono text-zinc-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+                <span className="text-zinc-500">{isAr ? 'المحمّل:' : 'Total:'}</span>
+                <span className="text-zinc-300 font-medium tabular-nums">{formatBytes(stats.totalBytesDownloaded)}</span>
               </div>
-            ) : null}
+            ) : (
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
+                <span>{isAr ? 'جاهز للتسريع' : 'Standby'}</span>
+              </div>
+            )}
           </div>
 
           {/* Action Group */}
@@ -329,10 +338,14 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            <div className="mt-4 pt-3 border-t border-white/[0.06] flex justify-end">
+            <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
+              <div className="flex items-center gap-1.5">
+                <OtiumLogo className="w-3.5 h-3.5 text-[#00e599]" />
+                <span>Otium Downloader v{CURRENT_VERSION}</span>
+              </div>
               <button
                 onClick={() => setSettingsOpen(false)}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-mono bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white transition-colors"
+                className="px-3 py-1 rounded-lg text-xs font-mono bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white transition-colors"
               >
                 {isAr ? 'إغلاق' : 'Close'}
               </button>

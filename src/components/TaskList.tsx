@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-  DownloadCloud,
   Trash2,
   Search,
   Pause,
@@ -11,6 +10,7 @@ import {
   Download,
   Check
 } from 'lucide-react';
+import { OtiumLogo } from './OtiumLogo';
 import type { DownloadTask, TaskCategory } from '../types/downloader';
 import { downloadManager } from '../core/downloadManager';
 import { TaskCard } from './TaskCard';
@@ -237,8 +237,10 @@ export const TaskList: React.FC<TaskListProps> = ({
 
       {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-white/[0.06] rounded-2xl bg-[#0f1118]/20 animate-in-fade">
-          <DownloadCloud className="w-10 h-10 text-zinc-600 mx-auto mb-2.5" />
+        <div className="text-center py-20 border border-dashed border-white/[0.06] rounded-2xl bg-[#0f1118]/25 animate-in-fade relative overflow-hidden">
+          <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <OtiumLogo className="w-6 h-6 text-zinc-500" />
+          </div>
           <h4 className="text-sm font-semibold text-zinc-200 mb-1">
             {searchQuery
               ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No matching downloads'
@@ -252,7 +254,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           {!searchQuery && (
             <button
               onClick={onOpenAddModal}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all shadow-[0_0_12px_rgba(0,229,153,0.15)]"
             >
               {isAr ? 'إضافة تنزيل' : 'New Download'}
             </button>

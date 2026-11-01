@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
-  ArrowDownToLine,
   Layers,
   Link2,
   ChevronDown,
   ChevronUp,
   Sliders,
   ListPlus,
-  Clipboard
+  Clipboard,
+  ArrowDownToLine
 } from 'lucide-react';
+import { OtiumLogo } from './OtiumLogo';
 import { extractFilename, formatBytes } from '../core/segmentation';
 import { resolveUniversalLink, isLikelyDownloadUrl } from '../core/linkResolver';
 import { downloadManager, type ProbeResult } from '../core/downloadManager';
@@ -204,7 +205,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 font-semibold text-sm text-zinc-100">
-            <ArrowDownToLine className="w-4 h-4 text-[#00e599]" />
+            <OtiumLogo className="w-4 h-4 text-[#00e599]" glow />
             <span>{isAr ? 'تنزيل جديد' : 'New Download'}</span>
           </div>
           <button

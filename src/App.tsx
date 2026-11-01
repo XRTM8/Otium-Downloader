@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
+import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
 import type { DownloadTask, DownloadStats } from './types/downloader';
@@ -175,13 +176,16 @@ export function App() {
     <div className="min-h-screen bg-[#08090c] text-zinc-100 flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
-        <div className="fixed inset-0 z-50 bg-[#00e599]/10 border-2 border-dashed border-[#00e599] backdrop-blur-sm flex items-center justify-center pointer-events-none animate-fade-in">
-          <div className="p-6 rounded-2xl bg-[#0f1118] border border-[#00e599]/40 text-center shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-[#00e599]/10 border-2 border-dashed border-[#00e599] backdrop-blur-md flex items-center justify-center pointer-events-none animate-in-fade">
+          <div className="p-6 rounded-2xl bg-[#0f1118]/95 border border-[#00e599]/40 text-center shadow-2xl backdrop-blur-xl">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3 text-[#00e599] shadow-[0_0_16px_rgba(0,229,153,0.25)]">
+              <OtiumLogo className="w-6 h-6" glow />
+            </div>
             <span className="text-[#00e599] font-bold text-sm block mb-1">
-              {lang === 'ar' ? 'أفلت الرابط هنا للتحميل المباشر' : 'Drop URL here to download'}
+              {lang === 'ar' ? 'أفلت الرابط هنا للتنزيل المباشر' : 'Drop URL here to download'}
             </span>
-            <span className="text-neutral-400 text-xs font-mono">
-              {lang === 'ar' ? 'سيتم تسريع التنزيل عبر مسارات متزامنة' : 'Will accelerate via parallel streams'}
+            <span className="text-zinc-400 text-xs font-mono">
+              {lang === 'ar' ? 'سيتم تسريع التنزيل عبر مسارات متزامنة' : 'Accelerated parallel streams'}
             </span>
           </div>
         </div>

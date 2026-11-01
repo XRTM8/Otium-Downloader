@@ -65,23 +65,68 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const ext = task.filename.split('.').pop()?.toUpperCase() || 'FILE';
   const cleanExt = ext.length <= 4 ? ext : ext.slice(0, 3);
 
+  const getCategoryTheme = (cat?: string) => {
+    switch (cat) {
+      case 'programs':
+        return {
+          bg: 'bg-sky-500/10',
+          border: 'border-sky-500/20',
+          text: 'text-sky-400'
+        };
+      case 'media':
+        return {
+          bg: 'bg-purple-500/10',
+          border: 'border-purple-500/20',
+          text: 'text-purple-400'
+        };
+      case 'archives':
+        return {
+          bg: 'bg-amber-500/10',
+          border: 'border-amber-500/20',
+          text: 'text-amber-400'
+        };
+      case 'documents':
+        return {
+          bg: 'bg-emerald-500/10',
+          border: 'border-emerald-500/20',
+          text: 'text-emerald-400'
+        };
+      default:
+        return {
+          bg: 'bg-white/[0.04]',
+          border: 'border-white/[0.08]',
+          text: 'text-zinc-300'
+        };
+    }
+  };
+
+  const categoryTheme = getCategoryTheme(task.category);
+
   return (
-    <div className="bg-[#0e1017] border border-white/[0.06] hover:border-white/[0.12] rounded-xl p-3.5 sm:p-4 transition-all duration-200 group">
+    <div className="bg-[#0e1017] border border-white/[0.06] hover:border-white/[0.14] rounded-xl p-3.5 sm:p-4 transition-all duration-200 group hover:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)]">
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* File Extension Badge Icon */}
-          <div className="w-8 h-8 rounded-lg bg-[#141822] border border-white/[0.06] flex items-center justify-center shrink-0">
+          <div className="shrink-0">
             {task.status === 'completed' ? (
-              <CheckCircle2 className="w-4 h-4 text-[#00e599]" />
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_8px_rgba(0,229,153,0.12)]">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
             ) : task.status === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
+              <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+                <AlertCircle className="w-4 h-4" />
+              </div>
             ) : task.status === 'queued' ? (
-              <Clock className="w-4 h-4 text-zinc-400" />
+              <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-400">
+                <Clock className="w-4 h-4" />
+              </div>
             ) : (
-              <span className="text-[10px] font-mono font-bold text-zinc-300">
-                {cleanExt}
-              </span>
+              <div className={`w-8 h-8 rounded-lg ${categoryTheme.bg} ${categoryTheme.border} border flex items-center justify-center shadow-sm`}>
+                <span className={`text-[10px] font-mono font-bold tracking-tight ${categoryTheme.text}`}>
+                  {cleanExt}
+                </span>
+              </div>
             )}
           </div>
 
@@ -218,19 +263,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Progress Track */}
       <div className="mt-3">
-        <div className="w-full h-1.5 rounded-full bg-[#08090c] border border-white/[0.04] overflow-hidden">
+        <div className="w-full h-1.5 rounded-full bg-[#08090c] border border-white/[0.04] overflow-hidden relative">
           <div
-            className={`h-full transition-all duration-200 ${
+            className={`h-full transition-all duration-200 relative overflow-hidden ${
               task.status === 'completed'
                 ? 'bg-[#00e599]'
                 : task.status === 'paused'
                 ? 'bg-amber-400'
                 : task.status === 'queued'
                 ? 'bg-zinc-600'
-                : 'bg-[#00e599]'
+                : 'bg-[#00e599] shadow-[0_0_10px_rgba(0,229,153,0.35)]'
             }`}
             style={{ width: `${progressPercent}%` }}
-          />
+          >
+            {task.status === 'downloading' && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+            )}
+          </div>
         </div>
       </div>
 
