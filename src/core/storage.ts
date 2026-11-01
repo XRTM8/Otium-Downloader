@@ -66,8 +66,20 @@ export function saveTasksToStorage(tasks: DownloadTask[]): boolean {
     storage.setItem(STORAGE_TASKS_KEY, JSON.stringify(tasks));
     return true;
   } catch (error) {
-    console.warn('[Otium Storage] Failed to persist tasks to storage:', error);
-    return false;
+    console.warn('[Otium Storage] Storage quota reached, compacting completed history:', error);
+    try {
+      // Retain all non-completed tasks and the 50 most recent completed tasks
+      const activeOrPending = tasks.filter((t) => t.status !== 'completed');
+      const recentCompleted = tasks
+        .filter((t) => t.status === 'completed')
+        .sort((a, b) => (b.completedAt || b.createdAt) - (a.completedAt || a.createdAt))
+        .slice(0, 50);
+      const compacted = [...activeOrPending, ...recentCompleted];
+      storage.setItem(STORAGE_TASKS_KEY, JSON.stringify(compacted));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

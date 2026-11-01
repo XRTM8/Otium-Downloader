@@ -7,6 +7,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::RwLock;
@@ -190,15 +191,21 @@ async fn probe_url(
     url: String,
     custom_headers: Option<HashMap<String, String>>,
 ) -> Result<UrlProbeResult, String> {
+    let trimmed_url = url.trim();
+    if !trimmed_url.starts_with("http://") && !trimmed_url.starts_with("https://") {
+        return Err("Only HTTP and HTTPS URLs are allowed".to_string());
+    }
+
     let client = reqwest::Client::builder()
         .user_agent(DEFAULT_USER_AGENT)
         .redirect(reqwest::redirect::Policy::limited(15))
         .connect_timeout(std::time::Duration::from_secs(12))
+        .tcp_keepalive(Some(std::time::Duration::from_secs(15)))
         .build()
         .map_err(|e| e.to_string())?;
 
-    let mut head_req = client.head(&url);
-    let mut get_req = client.get(&url).header(reqwest::header::RANGE, "bytes=0-0");
+    let mut head_req = client.head(trimmed_url);
+    let mut get_req = client.get(trimmed_url).header(reqwest::header::RANGE, "bytes=0-0");
 
     if let Some(ref map) = custom_headers {
         for (k, v) in map {
@@ -284,18 +291,29 @@ async fn prepare_download_file(
     destination_path: String,
     total_bytes: u64,
 ) -> Result<(), String> {
-    let path = Path::new(&destination_path);
+    let clean_path = destination_path.trim();
+    if clean_path.is_empty() {
+        return Err("Destination path cannot be empty".to_string());
+    }
+
+    let path = Path::new(clean_path);
+    if path.is_dir() {
+        return Err("Destination path points to an existing directory, expected file".to_string());
+    }
+
     if let Some(parent) = path.parent() {
-        tokio::fs::create_dir_all(parent)
-            .await
-            .map_err(|e| format!("Failed to create folder structure: {}", e))?;
+        if !parent.as_os_str().is_empty() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|e| format!("Failed to create folder structure: {}", e))?;
+        }
     }
 
     let file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
-        .open(&destination_path)
+        .open(clean_path)
         .await
         .map_err(|e| format!("Failed to open or create file: {}", e))?;
 
@@ -356,10 +374,16 @@ async fn download_segment(
         return Ok(());
     }
 
+    let trimmed_url = url.trim();
+    if !trimmed_url.starts_with("http://") && !trimmed_url.starts_with("https://") {
+        return Err("Only HTTP and HTTPS URLs are allowed".to_string());
+    }
+
     let client = reqwest::Client::builder()
         .user_agent(DEFAULT_USER_AGENT)
         .redirect(reqwest::redirect::Policy::limited(15))
         .connect_timeout(std::time::Duration::from_secs(15))
+        .tcp_keepalive(Some(std::time::Duration::from_secs(15)))
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -433,11 +457,22 @@ async fn download_segment(
         let mut stream = response.bytes_stream();
         let mut stream_error = false;
 
-        while let Some(chunk_result) = stream.next().await {
+        loop {
             if token.load(Ordering::Relaxed) {
                 let _ = file.flush().await;
                 return Ok(());
             }
+
+            let next_step = tokio::time::timeout(std::time::Duration::from_secs(30), stream.next()).await;
+            let chunk_result = match next_step {
+                Ok(Some(item)) => item,
+                Ok(None) => break, // Clean EOF
+                Err(_) => {
+                    log::warn!("Stream stalled on segment {} (no data for 30s)", segment_index);
+                    stream_error = true;
+                    break;
+                }
+            };
 
             match chunk_result {
                 Ok(chunk) => {
@@ -517,6 +552,11 @@ async fn download_segment(
 
 #[tauri::command]
 async fn verify_file_sha256(file_path: String) -> Result<String, String> {
+    let path = Path::new(&file_path);
+    if !path.exists() || !path.is_file() {
+        return Err("Target file does not exist or is not a regular file".to_string());
+    }
+
     let mut file = tokio::fs::File::open(&file_path)
         .await
         .map_err(|e| format!("Cannot open file for hashing: {}", e))?;
@@ -541,80 +581,25 @@ async fn verify_file_sha256(file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn open_destination_folder(file_path: String) -> Result<(), String> {
+async fn open_destination_folder(app: AppHandle, file_path: String) -> Result<(), String> {
     let path = Path::new(&file_path);
-    let folder = if path.is_file() {
-        path.parent().unwrap_or(path)
-    } else {
-        path
-    };
-
-    #[cfg(target_os = "windows")]
-    {
-        if path.is_file() {
-            tokio::process::Command::new("explorer")
-                .arg(format!("/select,{}", path.display()))
-                .spawn()
-                .map_err(|e| e.to_string())?;
-        } else {
-            tokio::process::Command::new("explorer")
-                .arg(folder)
-                .spawn()
-                .map_err(|e| e.to_string())?;
-        }
+    if !path.exists() {
+        return Err("Destination path does not exist".to_string());
     }
-
-    #[cfg(target_os = "macos")]
-    {
-        tokio::process::Command::new("open")
-            .arg(folder)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        tokio::process::Command::new("xdg-open")
-            .arg(folder)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
+    app.opener()
+        .reveal_item_in_dir(&file_path)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn open_file_item(file_path: String) -> Result<(), String> {
+async fn open_file_item(app: AppHandle, file_path: String) -> Result<(), String> {
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err("File does not exist on disk".to_string());
     }
-
-    #[cfg(target_os = "windows")]
-    {
-        tokio::process::Command::new("cmd")
-            .args(["/C", "start", "", &file_path])
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        tokio::process::Command::new("open")
-            .arg(&file_path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        tokio::process::Command::new("xdg-open")
-            .arg(&file_path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
+    app.opener()
+        .open_path(&file_path, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
