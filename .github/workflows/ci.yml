@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  frontend:
+    name: Frontend (TypeScript & React)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +17,24 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run version:check
       - run: npm test
       - run: npm run build
+
+  rust-backend:
+    name: Backend (Rust & Tauri)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system dependencies for Tauri v2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+      - name: Cargo Check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+      - name: Cargo Test
+        run: cargo test --manifest-path src-tauri/Cargo.toml

@@ -11,7 +11,10 @@ import {
   FolderOpen,
   Copy,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  FastForward,
+  ExternalLink,
+  RotateCcw
 } from 'lucide-react';
 import type { DownloadTask } from '../types/downloader';
 import { formatBytes, formatSpeed, formatEta } from '../core/segmentation';
@@ -23,6 +26,8 @@ interface TaskCardProps {
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onRemove: (id: string) => void;
+  onStartImmediately?: (id: string) => void;
+  onRestart?: (id: string) => void;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -30,7 +35,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   lang,
   onPause,
   onResume,
-  onRemove
+  onRemove,
+  onStartImmediately,
+  onRestart
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -57,6 +64,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     downloadManager.openFolder(task.savePath || task.filename);
   };
 
+  const getCategoryLabel = (cat?: string) => {
+    switch (cat) {
+      case 'programs': return isAr ? 'برامج' : 'Programs';
+      case 'media': return isAr ? 'وسائط' : 'Media';
+      case 'documents': return isAr ? 'مستندات' : 'Docs';
+      case 'archives': return isAr ? 'أرشيف' : 'Archives';
+      default: return isAr ? 'أخرى' : 'Other';
+    }
+  };
+
   return (
     <div className="bg-[#0c0e14] border border-[#1e2230] hover:border-[#00e599]/30 rounded-2xl p-5 transition-all shadow-lg group">
       {/* Top Meta Bar */}
@@ -67,15 +84,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               <CheckCircle2 className="w-5 h-5 text-[#00e599]" />
             ) : task.status === 'error' ? (
               <AlertCircle className="w-5 h-5 text-red-400" />
+            ) : task.status === 'queued' ? (
+              <Clock className="w-5 h-5 text-cyan-400" />
             ) : (
               <FileText className="w-5 h-5 text-neutral-300 group-hover:text-[#00e599] transition-colors" />
             )}
           </div>
 
           <div className="min-w-0">
-            <h3 className="font-bold text-sm text-white truncate max-w-md" title={task.filename}>
-              {task.filename}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-sm text-white truncate max-w-md" title={task.filename}>
+                {task.filename}
+              </h3>
+              {task.category && (
+                <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-white/5 text-neutral-400 border border-white/10 shrink-0">
+                  {getCategoryLabel(task.category)}
+                </span>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 mt-1 text-[11px] font-mono text-neutral-400">
               <span>{formatBytes(task.downloadedBytes)} / {formatBytes(task.totalBytes)}</span>
               <span>•</span>
@@ -84,9 +111,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   ? 'text-[#00e599]'
                   : task.status === 'paused'
                   ? 'text-amber-400'
+                  : task.status === 'queued'
+                  ? 'text-cyan-400'
+                  : task.status === 'error'
+                  ? 'text-red-400'
                   : 'text-neutral-300'
               }`}>
-                {task.status.toUpperCase()}
+                {task.status === 'queued' ? (isAr ? 'في الانتظار' : 'QUEUED') : task.status.toUpperCase()}
               </span>
 
               {task.savePath && (
@@ -96,19 +127,45 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 </>
               )}
             </div>
+            {task.errorMessage && (
+              <div className="text-red-400 text-[10px] font-mono mt-1 flex items-center gap-1 truncate" title={task.errorMessage}>
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span className="truncate">{task.errorMessage}</span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {task.status === 'completed' && (
+          {task.status === 'queued' && onStartImmediately && (
             <button
-              onClick={handleOpenFolder}
-              className="p-2 rounded-xl border border-[#1e2230] bg-[#08090c] hover:border-[#00e599]/40 text-neutral-300 hover:text-[#00e599] transition-colors"
-              title={isAr ? 'فتح مكان الملف' : 'Show in Folder'}
+              onClick={() => onStartImmediately(task.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-400/40 bg-cyan-400/10 hover:bg-cyan-400/20 text-cyan-400 text-xs font-mono font-bold transition-all transform active:scale-95"
+              title={isAr ? 'بدء التنزيل فوراً وتخطي الانتظار' : 'Start now'}
             >
-              <FolderOpen className="w-4 h-4" />
+              <FastForward className="w-3.5 h-3.5" />
+              <span>{isAr ? 'ابدأ الآن' : 'Start Now'}</span>
             </button>
+          )}
+
+          {task.status === 'completed' && (
+            <>
+              <button
+                onClick={() => downloadManager.openFile(task.savePath || task.filename)}
+                className="p-2 rounded-xl border border-[#00e599]/30 bg-[#00e599]/10 hover:bg-[#00e599]/20 text-[#00e599] transition-all transform active:scale-95"
+                title={isAr ? 'تشغيل / فتح الملف مباشرة' : 'Open File directly'}
+              >
+                <ExternalLink className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleOpenFolder}
+                className="p-2 rounded-xl border border-[#1e2230] bg-[#08090c] hover:border-[#00e599]/40 text-neutral-300 hover:text-[#00e599] transition-colors"
+                title={isAr ? 'فتح مكان الملف' : 'Show in Folder'}
+              >
+                <FolderOpen className="w-4 h-4" />
+              </button>
+            </>
           )}
 
           <button
@@ -139,6 +196,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             </button>
           )}
 
+          {(task.status === 'completed' || task.status === 'error') && onRestart && (
+            <button
+              onClick={() => onRestart(task.id)}
+              className="p-2 rounded-xl border border-[#1e2230] bg-[#08090c] hover:border-[#00e599]/40 text-neutral-400 hover:text-[#00e599] transition-colors"
+              title={isAr ? 'إعادة التنزيل من البداية' : 'Restart Download'}
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={() => onRemove(task.id)}
             className="p-2 rounded-xl border border-[#1e2230] bg-[#08090c] hover:border-red-400/40 text-neutral-400 hover:text-red-400 transition-colors"
@@ -165,6 +232,11 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               </span>
             </div>
           )}
+          {task.status === 'queued' && (
+            <span className="text-cyan-400 text-[11px] font-mono animate-pulse">
+              {isAr ? 'بانتظار دور التنزيل في الطابور...' : 'Waiting in download queue...'}
+            </span>
+          )}
         </div>
 
         <div className="w-full h-2 rounded-full bg-[#08090c] border border-[#1e2230] overflow-hidden">
@@ -174,6 +246,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 ? 'bg-[#00e599]'
                 : task.status === 'paused'
                 ? 'bg-amber-400'
+                : task.status === 'queued'
+                ? 'bg-cyan-400/50'
                 : 'bg-[#00e599] shadow-[0_0_10px_rgba(0,229,153,0.5)]'
             }`}
             style={{ width: `${progressPercent}%` }}
@@ -193,14 +267,23 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             {task.chunks.map((chunk) => {
               const chunkSpan = chunk.endByte - chunk.startByte + 1;
               const chunkPct = chunkSpan > 0 ? Math.round((chunk.downloaded / chunkSpan) * 100) : 0;
+              const isChunkActive = chunk.status === 'downloading' && task.status === 'downloading';
               return (
                 <div
                   key={chunk.index}
-                  className="h-2 rounded bg-[#08090c] border border-[#1e2230] overflow-hidden relative"
-                  title={`Chunk #${chunk.index + 1}: ${chunkPct}%`}
+                  className={`h-2.5 rounded bg-[#08090c] border border-[#1e2230] overflow-hidden relative cursor-help transition-all ${
+                    isChunkActive ? 'border-[#00e599]/60 shadow-[0_0_8px_rgba(0,229,153,0.3)]' : ''
+                  }`}
+                  title={`${isAr ? 'المسار' : 'Stream'} #${chunk.index + 1}: ${formatBytes(chunk.downloaded)} / ${formatBytes(chunkSpan)} (${chunkPct}%)`}
                 >
                   <div
-                    className="h-full bg-[#00e599]/80 transition-all duration-300"
+                    className={`h-full transition-all duration-300 ${
+                      chunk.status === 'completed'
+                        ? 'bg-[#00e599]'
+                        : isChunkActive
+                        ? 'bg-[#00e599] animate-pulse'
+                        : 'bg-[#00e599]/40'
+                    }`}
                     style={{ width: `${chunkPct}%` }}
                   />
                 </div>

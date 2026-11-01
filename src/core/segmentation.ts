@@ -4,8 +4,10 @@ import type { DownloadChunk } from '../types/downloader';
  * Calculates parallel chunks for segmented downloading.
  */
 export function calculateSegments(totalBytes: number, segmentCount: number = 4): DownloadChunk[] {
-  if (totalBytes <= 0 || segmentCount <= 0) return [];
-  if (totalBytes < 512) {
+  if (totalBytes <= 0) {
+    return [{ index: 0, startByte: 0, endByte: 0, downloaded: 0, status: 'pending' }];
+  }
+  if (segmentCount <= 1 || totalBytes < 512) {
     return [{ index: 0, startByte: 0, endByte: totalBytes - 1, downloaded: 0, status: 'pending' }];
   }
   
@@ -108,6 +110,47 @@ export function extractFilename(rawUrl: string, contentDisposition?: string): st
   return 'download_' + Date.now();
 }
 
+/**
+ * Strict filename sanitizer protecting against Directory Traversal and Windows reserved device names.
+ */
 export function sanitizeFilename(name: string): string {
-  return name.replace(/[\\/:*?"<>|\r\n\t]/g, '_').trim() || 'download';
+  let clean = name
+    .replace(/[\\/:*?"<>|\r\n\t\0]/g, '_')
+    .replace(/\.\.+/g, '_')
+    .trim()
+    .replace(/^[. ]+|[. ]+$/g, '');
+
+  if (!clean) clean = 'download';
+
+  const stem = clean.split('.')[0]?.toUpperCase() || '';
+  const reserved = [
+    'CON', 'PRN', 'AUX', 'NUL',
+    'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+    'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'
+  ];
+  if (reserved.includes(stem)) {
+    clean = '_' + clean;
+  }
+
+  return clean;
+}
+
+/**
+ * Automatically classifies a file by its extension into functional categories.
+ */
+export function detectCategory(filename: string): 'programs' | 'media' | 'documents' | 'archives' | 'other' {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (['exe', 'msi', 'apk', 'dmg', 'deb', 'rpm', 'iso', 'img', 'bin'].includes(ext)) {
+    return 'programs';
+  }
+  if (['mp4', 'mkv', 'avi', 'mov', 'webm', 'mp3', 'flac', 'wav', 'aac', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(ext)) {
+    return 'media';
+  }
+  if (['pdf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'txt', 'csv', 'epub', 'md'].includes(ext)) {
+    return 'documents';
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'zst'].includes(ext)) {
+    return 'archives';
+  }
+  return 'other';
 }

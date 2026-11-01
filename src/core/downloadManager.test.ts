@@ -76,4 +76,145 @@ describe('DownloadManager', () => {
 
     mgr.destroy();
   });
+
+  it('restores tasks from storage and marks downloading tasks as paused', () => {
+    const memoryStorage: Record<string, string> = {};
+    const mockStorage: Storage = {
+      getItem: (k: string) => memoryStorage[k] ?? null,
+      setItem: (k: string, v: string) => { memoryStorage[k] = v; },
+      removeItem: (k: string) => { delete memoryStorage[k]; },
+      clear: () => { Object.keys(memoryStorage).forEach((k) => delete memoryStorage[k]); },
+      key: (i: number) => Object.keys(memoryStorage)[i] ?? null,
+      length: 0
+    };
+    (globalThis as any).localStorage = mockStorage;
+
+    const rawSaved = JSON.stringify([
+      {
+        id: 'task_saved_1',
+        url: 'https://example.com/movie.mp4',
+        filename: 'movie.mp4',
+        totalBytes: 1000,
+        downloadedBytes: 500,
+        status: 'downloading',
+        speedBytesPerSec: 1024,
+        etaSeconds: 10,
+        chunks: [],
+        createdAt: 1000
+      }
+    ]);
+    mockStorage.setItem('otium_download_tasks_v1', rawSaved);
+
+    const mgr = new DownloadManager();
+    const tasks = mgr.getTasks();
+    const restored = tasks.find((t) => t.id === 'task_saved_1');
+
+    expect(restored).toBeDefined();
+    expect(restored?.status).toBe('paused');
+    expect(restored?.speedBytesPerSec).toBe(0);
+    expect(restored?.downloadedBytes).toBe(500);
+
+    mgr.destroy();
+    delete (globalThis as any).localStorage;
+  });
+
+  it('enforces max concurrent downloads queue and promotes queued tasks', () => {
+    const mgr = new DownloadManager();
+    mgr.updateSettings({ maxConcurrentDownloads: 2 });
+
+    const id1 = mgr.addTask('https://example.com/1.bin');
+    const id2 = mgr.addTask('https://example.com/2.bin');
+    const id3 = mgr.addTask('https://example.com/3.bin');
+
+    const tasks = mgr.getTasks();
+    const t1 = tasks.find((t) => t.id === id1);
+    const t2 = tasks.find((t) => t.id === id2);
+    const t3 = tasks.find((t) => t.id === id3);
+
+    expect(t1?.status).toBe('downloading');
+    expect(t2?.status).toBe('downloading');
+    expect(t3?.status).toBe('queued');
+
+    const stats = mgr.getStats();
+    expect(stats.activeCount).toBe(2);
+    expect(stats.queuedCount).toBe(1);
+
+    // Complete task 1 -> task 3 should automatically be promoted to downloading
+    mgr.updateTaskProgress(id1, t1!.totalBytes);
+
+    expect(t1?.status).toBe('completed');
+    expect(t3?.status).toBe('downloading');
+
+    mgr.destroy();
+  });
+
+  it('allows manual promotion of queued task to start immediately', () => {
+    const mgr = new DownloadManager();
+    mgr.updateSettings({ maxConcurrentDownloads: 1 });
+
+    mgr.addTask('https://example.com/a.bin');
+    const id2 = mgr.addTask('https://example.com/b.bin');
+
+    const t2 = mgr.getTasks().find((t) => t.id === id2);
+    expect(t2?.status).toBe('queued');
+
+    mgr.startTaskImmediately(id2);
+    expect(t2?.status).toBe('downloading');
+
+    mgr.destroy();
+  });
+
+  it('handles addBatchTasks with multi-line filtering', () => {
+    const mgr = new DownloadManager();
+    const urls = [
+      'https://example.com/file1.iso',
+      '',
+      '   ',
+      'https://example.com/file2.zip',
+      'https://example.com/file3.tar.gz'
+    ];
+
+    const addedIds = mgr.addBatchTasks(urls, 4);
+    expect(addedIds.length).toBe(3);
+
+    const tasks = mgr.getTasks();
+    expect(tasks.length).toBe(3);
+    expect(tasks.map((t) => t.filename)).toEqual([
+      'file1.iso',
+      'file2.zip',
+      'file3.tar.gz'
+    ]);
+
+    mgr.destroy();
+  });
+
+  it('restarts an existing completed or paused task from zero bytes', () => {
+    const mgr = new DownloadManager();
+    const id = mgr.addTask('https://example.com/test-restart.bin');
+
+    const task = mgr.getTasks().find((t) => t.id === id)!;
+    // Simulate partial progress and completion
+    mgr.updateTaskProgress(id, task.totalBytes);
+    expect(mgr.getTasks().find((t) => t.id === id)?.status).toBe('completed');
+    expect(mgr.getTasks().find((t) => t.id === id)?.downloadedBytes).toBe(task.totalBytes);
+
+    // Restart the task
+    mgr.restartTask(id);
+    const restarted = mgr.getTasks().find((t) => t.id === id);
+    expect(restarted?.downloadedBytes).toBe(0);
+    expect(restarted?.status).toBe('downloading');
+    expect(restarted?.chunks.every((c) => c.downloaded === 0)).toBe(true);
+
+    mgr.destroy();
+  });
+
+  it('maintains a rolling speed history buffer of 20 samples', () => {
+    const mgr = new DownloadManager();
+    const history = mgr.getSpeedHistory();
+    expect(history).toBeInstanceOf(Array);
+    expect(history.length).toBe(20);
+    expect(history.every((v) => typeof v === 'number')).toBe(true);
+
+    mgr.destroy();
+  });
 });

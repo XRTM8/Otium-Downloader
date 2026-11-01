@@ -6,7 +6,8 @@ import {
   formatSpeed,
   formatEta,
   extractFilename,
-  sanitizeFilename
+  sanitizeFilename,
+  detectCategory
 } from './segmentation';
 
 describe('segmentation utility', () => {
@@ -62,5 +63,28 @@ describe('segmentation utility', () => {
       extractFilename('https://example.com/dl', 'attachment; filename="setup_v1.0.exe"')
     ).toBe('setup_v1.0.exe');
     expect(sanitizeFilename('bad:file/name?.pdf')).toBe('bad_file_name_.pdf');
+    expect(sanitizeFilename('../../etc/passwd')).toBe('____etc_passwd');
+    expect(sanitizeFilename('..\\..\\Windows\\System32\\cmd.exe')).toBe('____Windows_System32_cmd.exe');
+    expect(sanitizeFilename('CON.txt')).toBe('_CON.txt');
+    expect(sanitizeFilename('aux.log')).toBe('_aux.log');
+  });
+
+  it('handles unknown length with single stream fallback', () => {
+    const unknownChunks = calculateSegments(0, 8);
+    expect(unknownChunks.length).toBe(1);
+    expect(unknownChunks[0].startByte).toBe(0);
+    expect(unknownChunks[0].endByte).toBe(0);
+  });
+
+  it('classifies filenames into correct categories', () => {
+    expect(detectCategory('installer.exe')).toBe('programs');
+    expect(detectCategory('linux.iso')).toBe('programs');
+    expect(detectCategory('movie.mp4')).toBe('media');
+    expect(detectCategory('song.mp3')).toBe('media');
+    expect(detectCategory('report.pdf')).toBe('documents');
+    expect(detectCategory('sheet.xlsx')).toBe('documents');
+    expect(detectCategory('archive.zip')).toBe('archives');
+    expect(detectCategory('data.tar.gz')).toBe('archives');
+    expect(detectCategory('unknown.xyz')).toBe('other');
   });
 });

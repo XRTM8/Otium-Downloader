@@ -1,5 +1,7 @@
 export type TaskStatus = 'queued' | 'downloading' | 'paused' | 'completed' | 'error';
 
+export type TaskCategory = 'programs' | 'media' | 'documents' | 'archives' | 'other';
+
 export interface DownloadChunk {
   index: number;
   startByte: number;
@@ -30,11 +32,23 @@ export interface DownloadTask {
   errorMessage?: string;
   checksum?: ChecksumInfo;
   savePath?: string;
+  headers?: Record<string, string>;
+  category?: TaskCategory;
 }
 
 export interface DownloadStats {
   activeCount: number;
+  queuedCount: number;
   completedCount: number;
   totalBytesDownloaded: number;
   currentTotalSpeed: number;
+  speedLimitBytesPerSec: number;
+}
+
+export interface AppSettings {
+  maxConcurrentDownloads: number;
+  globalSpeedLimitBytes: number;
+  enableNotifications: boolean;
+  enableSound: boolean;
+  defaultDirectory: string;
 }

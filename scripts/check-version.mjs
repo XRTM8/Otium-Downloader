@@ -78,7 +78,12 @@ if (tauriConf) {
   check('src-tauri/tauri.conf.json version', tauriConf.version, canonicalVersion);
 }
 
-// 4. Tag argument (if supplied)
+// 4. Header.tsx CURRENT_VERSION
+const headerSrc = read('src/components/Header.tsx');
+const headerVersionMatch = /CURRENT_VERSION\s*=\s*'([^']+)'/.exec(headerSrc);
+check('src/components/Header.tsx CURRENT_VERSION', headerVersionMatch ? headerVersionMatch[1] : null, canonicalVersion);
+
+// 5. Tag argument (if supplied)
 const tagArg = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
 if (tagArg) {
   const expectedTag = `v${canonicalVersion}`;
