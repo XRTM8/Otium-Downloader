@@ -17,6 +17,8 @@ import { downloadManager, type ProbeResult } from '../core/downloadManager';
 interface AddTaskModalProps {
   isOpen: boolean;
   lang: 'ar' | 'en';
+  initialUrl?: string;
+  initialBatchText?: string;
   onClose: () => void;
   onAdd: (
     url: string,
@@ -31,6 +33,8 @@ interface AddTaskModalProps {
 export const AddTaskModal: React.FC<AddTaskModalProps> = ({
   isOpen,
   lang,
+  initialUrl,
+  initialBatchText,
   onClose,
   onAdd,
   onAddBatch
@@ -65,13 +69,25 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
       return;
     }
 
+    if (initialBatchText) {
+      setMode('batch');
+      setBatchText(initialBatchText);
+      return;
+    }
+
+    if (initialUrl) {
+      setMode('single');
+      handleUrlChange(initialUrl.trim());
+      return;
+    }
+
     // Try auto-detecting link from clipboard
     navigator.clipboard?.readText?.().then((text) => {
       if (text && isLikelyDownloadUrl(text)) {
         handleUrlChange(text.trim());
       }
     }).catch(() => {});
-  }, [isOpen]);
+  }, [isOpen, initialUrl, initialBatchText]);
 
   const handleUrlChange = (newUrl: string) => {
     setUrl(newUrl);

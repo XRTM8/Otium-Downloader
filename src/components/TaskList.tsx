@@ -1,6 +1,18 @@
-import React, { useState } from 'react';
-import { DownloadCloud, Trash2, Search, Pause, Play, X, Filter } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import {
+  DownloadCloud,
+  Trash2,
+  Search,
+  Pause,
+  Play,
+  X,
+  Filter,
+  Upload,
+  Download,
+  Check
+} from 'lucide-react';
 import type { DownloadTask, TaskCategory } from '../types/downloader';
+import { downloadManager } from '../core/downloadManager';
 import { TaskCard } from './TaskCard';
 
 interface TaskListProps {
@@ -33,7 +45,31 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedExport, setCopiedExport] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAr = lang === 'ar';
+
+  const handleExportUrls = () => {
+    const urls = downloadManager.exportUrls(statusFilter === 'all' ? undefined : statusFilter);
+    if (!urls) return;
+    navigator.clipboard?.writeText(urls);
+    setCopiedExport(true);
+    setTimeout(() => setCopiedExport(false), 2000);
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        downloadManager.importTasks(content);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   const hasDownloading = tasks.some((t) => t.status === 'downloading');
   const hasPaused = tasks.some((t) => t.status === 'paused');
@@ -116,10 +152,11 @@ export const TaskList: React.FC<TaskListProps> = ({
           <div className="relative flex-1 sm:w-48">
             <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
+              id="global-search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={isAr ? 'بحث سريع...' : 'Search...'}
+              placeholder={isAr ? 'بحث سريع... (/)' : 'Search... (/)'}
               className="w-full bg-[#0f1118] border border-white/[0.06] rounded-lg pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#00e599]/40 transition-colors font-mono"
             />
             {searchQuery && (
@@ -135,6 +172,34 @@ export const TaskList: React.FC<TaskListProps> = ({
 
         {/* Batch Actions Group */}
         <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs font-mono">
+          {/* File Import Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".txt,.json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
+            title={isAr ? 'استيراد روابط من ملف .txt أو .json' : 'Import URLs from file'}
+          >
+            <Upload className="w-3 h-3" />
+            <span>{isAr ? 'استيراد' : 'Import'}</span>
+          </button>
+
+          {tasks.length > 0 && (
+            <button
+              onClick={handleExportUrls}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
+              title={isAr ? 'نسخ روابط التنزيل الحالية للحافظة' : 'Copy download URLs to clipboard'}
+            >
+              {copiedExport ? <Check className="w-3 h-3 text-[#00e599]" /> : <Download className="w-3 h-3" />}
+              <span>{copiedExport ? (isAr ? 'تم النسخ ✓' : 'Copied ✓') : (isAr ? 'تصدير' : 'Export')}</span>
+            </button>
+          )}
           {hasDownloading && onPauseAll && (
             <button
               onClick={onPauseAll}

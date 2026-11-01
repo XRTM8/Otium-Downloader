@@ -136,6 +136,123 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
+ * Splits a filename into its stem and extension, preserving compound extensions
+ * like .tar.gz, .tar.bz2, .tar.xz, .user.js, etc.
+ */
+export function splitFilename(filename: string): { stem: string; ext: string } {
+  const clean = filename.trim();
+  const compoundExtensions = [
+    '.tar.gz', '.tar.bz2', '.tar.xz', '.tar.zst',
+    '.user.js', '.user.css'
+  ];
+
+  for (const comp of compoundExtensions) {
+    if (clean.toLowerCase().endsWith(comp)) {
+      const stem = clean.slice(0, -comp.length);
+      return { stem: stem || 'file', ext: comp };
+    }
+  }
+
+  const dotIndex = clean.lastIndexOf('.');
+  if (dotIndex > 0 && dotIndex < clean.length - 1) {
+    return {
+      stem: clean.slice(0, dotIndex),
+      ext: clean.slice(dotIndex)
+    };
+  }
+
+  return { stem: clean || 'download', ext: '' };
+}
+
+/**
+ * Deduplicates filenames when conflicts exist, formatting as "name (1).ext", "name (2).ext".
+ */
+export function deduplicateFilename(desiredFilename: string, existingFilenames: Set<string> | string[]): string {
+  const existingSet = new Set(
+    Array.isArray(existingFilenames)
+      ? existingFilenames.map((f) => f.toLowerCase())
+      : Array.from(existingFilenames).map((f) => f.toLowerCase())
+  );
+
+  const clean = sanitizeFilename(desiredFilename);
+  if (!existingSet.has(clean.toLowerCase())) {
+    return clean;
+  }
+
+  const { stem, ext } = splitFilename(clean);
+  let counter = 1;
+  while (counter < 10000) {
+    const candidate = `${stem} (${counter})${ext}`;
+    if (!existingSet.has(candidate.toLowerCase())) {
+      return candidate;
+    }
+    counter++;
+  }
+
+  return `${stem}_${Date.now()}${ext}`;
+}
+
+/**
+ * Humanizes raw HTTP or network error messages into friendly, actionable advice.
+ */
+export function humanizeErrorMessage(rawError?: string, lang: 'ar' | 'en' = 'ar'): string {
+  if (!rawError) return '';
+  const err = rawError.toLowerCase();
+  const isAr = lang === 'ar';
+
+  if (err.includes('401') || err.includes('403') || err.includes('forbidden') || err.includes('unauthorized')) {
+    return isAr
+      ? 'تم رفض الوصول: قد يكون الرابط منتهي الصلاحية أو يتطلب تسجيل دخول أو كوكيز'
+      : 'Access denied: Link may have expired or requires authentication/cookies';
+  }
+
+  if (err.includes('404') || err.includes('not found')) {
+    return isAr
+      ? 'الملف غير موجود: تأكد من صحة الرابط أو أنه لم يُحذف من الخادم'
+      : 'File not found: The link is invalid or the file was deleted from the server';
+  }
+
+  if (err.includes('429') || err.includes('too many requests')) {
+    return isAr
+      ? 'تم تجاوز حد الطلبات: الخادم يطلب تقليل الضغط، جرّب تقليل المسارات المتزامنة'
+      : 'Rate limit exceeded: Server requested throttling. Reduce concurrent streams';
+  }
+
+  if (
+    err.includes('500') ||
+    err.includes('502') ||
+    err.includes('503') ||
+    err.includes('504') ||
+    err.includes('bad gateway') ||
+    err.includes('service unavailable')
+  ) {
+    return isAr
+      ? 'خطأ في الخادم البعيد: الخادم يواجه تعطلاً مؤقتاً أو أعمال صيانة'
+      : 'Remote server error: Host server is temporarily down or under maintenance';
+  }
+
+  if (err.includes('does not support byte ranges') || err.includes('200 instead of 206')) {
+    return isAr
+      ? 'الخادم لا يدعم تقسيم الملف أو استئناف التنزيل'
+      : 'Server does not support partial byte ranges or resume';
+  }
+
+  if (err.includes('timed out') || err.includes('timeout') || err.includes('stalled')) {
+    return isAr
+      ? 'انتهت مهلة الاتصال بالخادم. تحقق من سرعة واستقرار شبكة الإنترنت'
+      : 'Connection timed out. Check your internet connection or server availability';
+  }
+
+  if (err.includes('disk write') || err.includes('no space') || err.includes('device full')) {
+    return isAr
+      ? 'تعذر الكتابة على القرص: تأكد من وجود مساحة تخزين شاغرة كافية'
+      : 'Disk write error: Ensure you have sufficient free storage space';
+  }
+
+  return rawError;
+}
+
+/**
  * Automatically classifies a file by its extension into functional categories.
  */
 export function detectCategory(filename: string): 'programs' | 'media' | 'documents' | 'archives' | 'other' {

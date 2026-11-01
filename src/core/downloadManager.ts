@@ -1,5 +1,11 @@
 import type { DownloadTask, DownloadStats, AppSettings } from '../types/downloader';
-import { calculateSegments, extractFilename, sanitizeFilename, detectCategory } from './segmentation';
+import {
+  calculateSegments,
+  extractFilename,
+  sanitizeFilename,
+  detectCategory,
+  deduplicateFilename
+} from './segmentation';
 import { soundEngine } from './sound';
 import {
   loadTasksFromStorage,
@@ -258,6 +264,71 @@ export class DownloadManager {
     return ids;
   }
 
+  public exportUrls(filter?: 'all' | 'active' | 'completed'): string {
+    const tasks = Array.from(this.tasks.values());
+    const filtered = tasks.filter((t) => {
+      if (filter === 'active') return t.status === 'downloading' || t.status === 'queued' || t.status === 'paused';
+      if (filter === 'completed') return t.status === 'completed';
+      return true;
+    });
+    return filtered.map((t) => t.url).join('\n');
+  }
+
+  public exportTasksJson(): string {
+    const list = Array.from(this.tasks.values()).map((t) => ({
+      url: t.url,
+      filename: t.filename,
+      category: t.category,
+      headers: t.headers,
+      checksum: t.checksum?.expected,
+      createdAt: t.createdAt
+    }));
+    return JSON.stringify(list, null, 2);
+  }
+
+  public importTasks(rawText: string, segmentCount?: number): number {
+    const trimmed = rawText.trim();
+    if (!trimmed) return 0;
+
+    let addedCount = 0;
+
+    // 1. Try parsing as JSON array
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (item && typeof item.url === 'string' && /^https?:\/\/.+/i.test(item.url.trim())) {
+              this.addTask(
+                item.url.trim(),
+                typeof item.filename === 'string' ? item.filename : undefined,
+                segmentCount,
+                typeof item.checksum === 'string' ? item.checksum : undefined,
+                item.headers && typeof item.headers === 'object' ? item.headers : undefined
+              );
+              addedCount++;
+            }
+          }
+          if (addedCount > 0) return addedCount;
+        }
+      } catch {
+        // Fall back to plain text
+      }
+    }
+
+    // 2. Parse as newline-separated plain text / URLs
+    const lines = trimmed.split(/[\r\n]+/);
+    for (const line of lines) {
+      const match = line.match(/https?:\/\/[^\s"']+/i);
+      if (match) {
+        this.addTask(match[0].trim(), undefined, segmentCount);
+        addedCount++;
+      }
+    }
+
+    return addedCount;
+  }
+
   public getStats(): DownloadStats {
     let activeCount = 0;
     let queuedCount = 0;
@@ -338,7 +409,9 @@ export class DownloadManager {
     customHeaders?: Record<string, string>
   ): string {
     const id = 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    const filename = customFilename?.trim() ? sanitizeFilename(customFilename.trim()) : extractFilename(url);
+    const rawFilename = customFilename?.trim() ? sanitizeFilename(customFilename.trim()) : extractFilename(url);
+    const existingFilenames = Array.from(this.tasks.values()).map((t) => t.filename);
+    const filename = deduplicateFilename(rawFilename, existingFilenames);
     const category = detectCategory(filename);
     const totalBytes = 50 * 1024 * 1024; // 50MB initial placeholder until remote probe
 
@@ -399,7 +472,11 @@ export class DownloadManager {
           task.chunks = calculateSegments(task.totalBytes, effectiveSegments);
 
           if (probeData?.suggested_filename && !customFilename?.trim()) {
-            task.filename = sanitizeFilename(probeData.suggested_filename);
+            const rawSuggested = sanitizeFilename(probeData.suggested_filename);
+            const otherFilenames = Array.from(this.tasks.values())
+              .filter((t) => t.id !== task.id)
+              .map((t) => t.filename);
+            task.filename = deduplicateFilename(rawSuggested, otherFilenames);
             task.category = detectCategory(task.filename);
             const currentBase = this.defaultDownloadDir || 'Downloads';
             const sep = currentBase.includes('\\') ? '\\' : '/';

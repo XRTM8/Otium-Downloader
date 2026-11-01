@@ -179,7 +179,7 @@ describe('DownloadManager', () => {
 
     const tasks = mgr.getTasks();
     expect(tasks.length).toBe(3);
-    expect(tasks.map((t) => t.filename)).toEqual([
+    expect(tasks.map((t) => t.filename).sort()).toEqual([
       'file1.iso',
       'file2.zip',
       'file3.tar.gz'
@@ -214,6 +214,60 @@ describe('DownloadManager', () => {
     expect(history).toBeInstanceOf(Array);
     expect(history.length).toBe(20);
     expect(history.every((v) => typeof v === 'number')).toBe(true);
+
+    mgr.destroy();
+  });
+
+  it('automatically deduplicates filenames when adding duplicate names', () => {
+    const mgr = new DownloadManager();
+    mgr.addTask('https://example.com/data.zip');
+    mgr.addTask('https://example.com/data.zip');
+    mgr.addTask('https://example.com/data.zip');
+
+    const filenames = mgr.getTasks().map((t) => t.filename).sort();
+    expect(filenames).toEqual(['data (1).zip', 'data (2).zip', 'data.zip']);
+
+    mgr.destroy();
+  });
+
+  it('exports URLs and JSON task definitions correctly', () => {
+    const mgr = new DownloadManager();
+    mgr.addTask('https://example.com/test1.zip');
+    mgr.addTask('https://example.com/test2.iso');
+
+    const urls = mgr.exportUrls();
+    expect(urls).toContain('https://example.com/test1.zip');
+    expect(urls).toContain('https://example.com/test2.iso');
+
+    const json = mgr.exportTasksJson();
+    const parsed = JSON.parse(json);
+    expect(parsed.length).toBe(2);
+    expect(parsed[0].url).toBeDefined();
+
+    mgr.destroy();
+  });
+
+  it('imports tasks from text and JSON definitions accurately', () => {
+    const mgr = new DownloadManager();
+    const textData = `
+      https://example.com/first.mp4
+      some random log line
+      https://example.com/second.pdf
+    `;
+
+    const importedFromText = mgr.importTasks(textData, 4);
+    expect(importedFromText).toBe(2);
+
+    const jsonData = JSON.stringify([
+      { url: 'https://example.com/json1.tar.gz', filename: 'custom-json.tar.gz' },
+      { url: 'https://example.com/json2.bin' }
+    ]);
+
+    const importedFromJson = mgr.importTasks(jsonData, 8);
+    expect(importedFromJson).toBe(2);
+
+    expect(mgr.getTasks().length).toBe(4);
+    expect(mgr.getTasks().some((t) => t.filename === 'custom-json.tar.gz')).toBe(true);
 
     mgr.destroy();
   });

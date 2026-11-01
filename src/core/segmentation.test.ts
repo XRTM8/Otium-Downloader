@@ -7,7 +7,10 @@ import {
   formatEta,
   extractFilename,
   sanitizeFilename,
-  detectCategory
+  detectCategory,
+  splitFilename,
+  deduplicateFilename,
+  humanizeErrorMessage
 } from './segmentation';
 
 describe('segmentation utility', () => {
@@ -86,5 +89,31 @@ describe('segmentation utility', () => {
     expect(detectCategory('archive.zip')).toBe('archives');
     expect(detectCategory('data.tar.gz')).toBe('archives');
     expect(detectCategory('unknown.xyz')).toBe('other');
+  });
+
+  it('splits filenames correctly including compound extensions', () => {
+    expect(splitFilename('report.pdf')).toEqual({ stem: 'report', ext: '.pdf' });
+    expect(splitFilename('linux-x86_64.tar.gz')).toEqual({ stem: 'linux-x86_64', ext: '.tar.gz' });
+    expect(splitFilename('backup.tar.bz2')).toEqual({ stem: 'backup', ext: '.tar.bz2' });
+    expect(splitFilename('script.user.js')).toEqual({ stem: 'script', ext: '.user.js' });
+    expect(splitFilename('README')).toEqual({ stem: 'README', ext: '' });
+  });
+
+  it('deduplicates filenames with incrementing collision counters', () => {
+    const existing = ['report.pdf', 'report (1).pdf', 'archive.tar.gz'];
+
+    expect(deduplicateFilename('report.pdf', existing)).toBe('report (2).pdf');
+    expect(deduplicateFilename('new-file.pdf', existing)).toBe('new-file.pdf');
+    expect(deduplicateFilename('archive.tar.gz', existing)).toBe('archive (1).tar.gz');
+  });
+
+  it('humanizes error messages into friendly descriptions', () => {
+    expect(humanizeErrorMessage('Server returned HTTP 403', 'en')).toContain('Access denied');
+    expect(humanizeErrorMessage('Server returned HTTP 403', 'ar')).toContain('تم رفض الوصول');
+    expect(humanizeErrorMessage('HTTP 404 Not Found', 'en')).toContain('File not found');
+    expect(humanizeErrorMessage('HTTP 404 Not Found', 'ar')).toContain('الملف غير موجود');
+    expect(humanizeErrorMessage('HTTP 429 Too Many Requests', 'en')).toContain('Rate limit exceeded');
+    expect(humanizeErrorMessage('Connection timed out on segment 2', 'en')).toContain('timed out');
+    expect(humanizeErrorMessage('Random unexpected string', 'en')).toBe('Random unexpected string');
   });
 });

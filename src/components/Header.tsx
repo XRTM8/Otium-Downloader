@@ -18,6 +18,8 @@ import { downloadManager } from '../core/downloadManager';
 interface HeaderProps {
   stats: DownloadStats;
   lang: 'ar' | 'en';
+  isSettingsOpen?: boolean;
+  onToggleSettings?: (open: boolean) => void;
   onToggleLang: () => void;
   onOpenAddModal: () => void;
 }
@@ -27,10 +29,18 @@ const CURRENT_VERSION = '1.2.0';
 export const Header: React.FC<HeaderProps> = ({
   stats,
   lang,
+  isSettingsOpen: controlledSettingsOpen,
+  onToggleSettings,
   onToggleLang,
   onOpenAddModal
 }) => {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [internalSettingsOpen, setInternalSettingsOpen] = useState(false);
+  const isSettingsOpen = controlledSettingsOpen !== undefined ? controlledSettingsOpen : internalSettingsOpen;
+  const setSettingsOpen = (open: boolean) => {
+    if (onToggleSettings) onToggleSettings(open);
+    else setInternalSettingsOpen(open);
+  };
+
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ hasUpdate: boolean; version?: string } | null>(null);
 
@@ -129,9 +139,9 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={() => setSettingsOpen(true)}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
-              title={isAr ? 'الإعدادات' : 'Settings'}
+              title={isAr ? 'الإعدادات (⌘,)' : 'Settings (⌘,)'}
             >
               <Settings2 className="w-4 h-4" />
             </button>
@@ -161,7 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>{isAr ? 'الإعدادات' : 'Settings'}</span>
               </div>
               <button
-                onClick={() => setIsSettingsOpen(false)}
+                onClick={() => setSettingsOpen(false)}
                 className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -321,7 +331,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="mt-4 pt-3 border-t border-white/[0.06] flex justify-end">
               <button
-                onClick={() => setIsSettingsOpen(false)}
+                onClick={() => setSettingsOpen(false)}
                 className="px-3.5 py-1.5 rounded-lg text-xs font-mono bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-white transition-colors"
               >
                 {isAr ? 'إغلاق' : 'Close'}

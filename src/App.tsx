@@ -18,6 +18,9 @@ export function App() {
     speedLimitBytesPerSec: 0
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
+  const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   useEffect(() => {
@@ -31,10 +34,64 @@ export function App() {
       setStats(downloadManager.getStats());
     });
 
-    // Global Keyboard Shortcuts (Ctrl/Cmd + N: New Download)
+    // Global Keyboard Shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+
+      // Ctrl/Cmd + N: New Download
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault();
+        setInitialAddUrl(undefined);
+        setInitialBatchText(undefined);
+        setIsAddModalOpen(true);
+        return;
+      }
+
+      // Ctrl/Cmd + ,: Open Settings
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault();
+        setIsSettingsOpen(true);
+        return;
+      }
+
+      // Escape: Close all modals
+      if (e.key === 'Escape') {
+        setIsAddModalOpen(false);
+        setIsSettingsOpen(false);
+        return;
+      }
+
+      // /: Quick Search Focus (when not typing in an input)
+      if (e.key === '/' && !isInputActive) {
+        e.preventDefault();
+        document.getElementById('global-search-input')?.focus();
+        return;
+      }
+    };
+
+    // Global Paste Listener (Ctrl+V / Cmd+V outside input fields)
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      const pasted = e.clipboardData?.getData('text/plain');
+      if (!pasted || !pasted.trim()) return;
+
+      const lines = pasted
+        .split(/[\r\n]+/)
+        .map((l) => l.trim())
+        .filter((l) => /^https?:\/\/.+/i.test(l));
+
+      if (lines.length > 1) {
+        e.preventDefault();
+        setInitialBatchText(lines.join('\n'));
+        setInitialAddUrl(undefined);
+        setIsAddModalOpen(true);
+      } else if (lines.length === 1) {
+        e.preventDefault();
+        setInitialAddUrl(lines[0]);
+        setInitialBatchText(undefined);
         setIsAddModalOpen(true);
       }
     };
@@ -66,6 +123,7 @@ export function App() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('paste', handleGlobalPaste);
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
@@ -73,6 +131,7 @@ export function App() {
     return () => {
       unsubscribe();
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('paste', handleGlobalPaste);
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('dragleave', handleDragLeave);
       window.removeEventListener('drop', handleDrop);
@@ -132,8 +191,14 @@ export function App() {
       <Header
         stats={stats}
         lang={lang}
+        isSettingsOpen={isSettingsOpen}
+        onToggleSettings={setIsSettingsOpen}
         onToggleLang={handleToggleLang}
-        onOpenAddModal={() => setIsAddModalOpen(true)}
+        onOpenAddModal={() => {
+          setInitialAddUrl(undefined);
+          setInitialBatchText(undefined);
+          setIsAddModalOpen(true);
+        }}
       />
 
       {/* Main Content Area */}
@@ -147,7 +212,11 @@ export function App() {
           onRestart={(id) => downloadManager.restartTask(id)}
           onRemove={(id) => downloadManager.removeTask(id)}
           onClearCompleted={() => downloadManager.clearCompleted()}
-          onOpenAddModal={() => setIsAddModalOpen(true)}
+          onOpenAddModal={() => {
+            setInitialAddUrl(undefined);
+            setInitialBatchText(undefined);
+            setIsAddModalOpen(true);
+          }}
           onPauseAll={() => downloadManager.pauseAll()}
           onResumeAll={() => downloadManager.resumeAll()}
         />
@@ -157,7 +226,13 @@ export function App() {
       <AddTaskModal
         isOpen={isAddModalOpen}
         lang={lang}
-        onClose={() => setIsAddModalOpen(false)}
+        initialUrl={initialAddUrl}
+        initialBatchText={initialBatchText}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setInitialAddUrl(undefined);
+          setInitialBatchText(undefined);
+        }}
         onAdd={handleAddTask}
         onAddBatch={handleAddBatch}
       />

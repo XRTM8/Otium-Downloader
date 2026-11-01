@@ -14,7 +14,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import type { DownloadTask } from '../types/downloader';
-import { formatBytes, formatSpeed, formatEta } from '../core/segmentation';
+import { formatBytes, formatSpeed, formatEta, humanizeErrorMessage } from '../core/segmentation';
 import { downloadManager } from '../core/downloadManager';
 
 interface TaskCardProps {
@@ -132,7 +132,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             {task.errorMessage && (
               <div className="text-rose-400 text-[10px] font-mono mt-1 flex items-center gap-1 truncate" title={task.errorMessage}>
                 <AlertCircle className="w-3 h-3 shrink-0" />
-                <span className="truncate">{task.errorMessage}</span>
+                <span className="truncate">{humanizeErrorMessage(task.errorMessage, lang)}</span>
               </div>
             )}
           </div>
