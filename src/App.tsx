@@ -113,7 +113,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a0f] text-white flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
+    <div className="min-h-screen bg-[#08090c] text-zinc-100 flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
         <div className="fixed inset-0 z-50 bg-[#00e599]/10 border-2 border-dashed border-[#00e599] backdrop-blur-sm flex items-center justify-center pointer-events-none animate-fade-in">

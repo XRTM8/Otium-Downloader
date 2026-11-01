@@ -7,7 +7,8 @@ import {
   ChevronDown,
   ChevronUp,
   Sliders,
-  ListPlus
+  ListPlus,
+  Clipboard
 } from 'lucide-react';
 import { extractFilename, formatBytes } from '../core/segmentation';
 import { resolveUniversalLink, isLikelyDownloadUrl } from '../core/linkResolver';
@@ -182,31 +183,31 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#0f1118] border border-[#1e2230] rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative text-white">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in-fade">
+      <div className="bg-[#0f1118] border border-white/[0.08] rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative text-zinc-200">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#1e2230]">
-          <div className="flex items-center gap-2 font-bold text-sm text-white">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 font-semibold text-sm text-zinc-100">
             <ArrowDownToLine className="w-4 h-4 text-[#00e599]" />
             <span>{isAr ? 'تنزيل جديد' : 'New Download'}</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.06] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Mode Selector */}
-        <div className="grid grid-cols-2 gap-1.5 mt-4 p-1 rounded-lg bg-[#090a0f] border border-[#1e2230] text-xs font-mono">
+        {/* Mode Selector Tabs */}
+        <div className="grid grid-cols-2 gap-1.5 mt-4 p-1 rounded-lg bg-[#08090c] border border-white/[0.06] text-xs font-mono">
           <button
             type="button"
             onClick={() => setMode('single')}
             className={`py-1.5 rounded-md font-semibold transition-all ${
               mode === 'single'
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-white/[0.08] text-zinc-100 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <span className="flex items-center justify-center gap-1.5">
@@ -219,8 +220,8 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             onClick={() => setMode('batch')}
             className={`py-1.5 rounded-md font-semibold transition-all ${
               mode === 'batch'
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-neutral-400 hover:text-white'
+                ? 'bg-white/[0.08] text-zinc-100 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             <span className="flex items-center justify-center gap-1.5">
@@ -236,11 +237,11 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             <>
               {/* URL Input */}
               <div>
-                <div className="flex items-center justify-between mb-1.5 text-neutral-300">
-                  <label>{isAr ? 'رابط الملف' : 'Download URL'}</label>
+                <div className="flex items-center justify-between mb-1.5 text-zinc-300">
+                  <label>{isAr ? 'رابط التنزيل' : 'Download URL'}</label>
                   {isProbing && (
-                    <span className="text-[#00e599] text-[10px]">
-                      {isAr ? 'جاري فحص السيرفر...' : 'Probing server...'}
+                    <span className="text-[#00e599] text-[10px] animate-pulse">
+                      {isAr ? 'جاري فحص السيرفر...' : 'Probing remote headers...'}
                     </span>
                   )}
                 </div>
@@ -251,31 +252,31 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="https://example.com/file.zip"
-                    className="w-full bg-[#090a0f] border border-[#1e2230] focus:border-[#00e599] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none transition-colors"
+                    className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
                   />
                   <button
                     type="button"
                     onClick={handlePasteClipboard}
-                    className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white"
+                    className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-200"
                     title={isAr ? 'لصق من الحافظة' : 'Paste'}
                   >
-                    <Link2 className="w-3.5 h-3.5" />
+                    <Clipboard className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {/* Probe Feedback Pill */}
                 {probeData && (
-                  <div className="mt-2 p-2 rounded-lg bg-[#090a0f] border border-[#1e2230] flex items-center justify-between text-[11px]">
-                    <span className="text-neutral-400">
-                      {isAr ? 'الحجم:' : 'Size:'}{' '}
-                      <strong className="text-white">
+                  <div className="mt-2 p-2.5 rounded-lg bg-[#08090c] border border-white/[0.06] flex items-center justify-between text-[11px] animate-in-fade">
+                    <span className="text-zinc-400">
+                      {isAr ? 'الحجم المكتشف:' : 'Detected Size:'}{' '}
+                      <strong className="text-zinc-200 font-semibold">
                         {probeData.content_length ? formatBytes(probeData.content_length) : 'Unknown'}
                       </strong>
                     </span>
                     <span className={probeData.accept_ranges ? 'text-[#00e599]' : 'text-amber-400'}>
                       {probeData.accept_ranges
-                        ? isAr ? 'يدعم التقسيم ✓' : 'Ranges supported ✓'
-                        : isAr ? 'مسار فردي' : 'Single stream'}
+                        ? isAr ? 'يدعم التقسيم المتعدد ✓' : 'Ranges supported ✓'
+                        : isAr ? 'مسار فردي فقط' : 'Single stream'}
                     </span>
                   </div>
                 )}
@@ -283,7 +284,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
 
               {/* Filename Input */}
               <div>
-                <label className="block text-neutral-300 mb-1">
+                <label className="block text-zinc-300 mb-1">
                   {isAr ? 'اسم الملف (اختياري)' : 'Filename (Optional)'}
                 </label>
                 <input
@@ -291,13 +292,13 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
                   placeholder="archive.zip"
-                  className="w-full bg-[#090a0f] border border-[#1e2230] focus:border-[#00e599] rounded-xl px-3.5 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none"
+                  className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
                 />
               </div>
 
               {/* Parallel Streams Selector */}
               <div>
-                <label className="block text-neutral-300 mb-1">
+                <label className="block text-zinc-300 mb-1">
                   {isAr ? 'عدد المسارات المتزامنة' : 'Concurrent Streams'}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
@@ -308,8 +309,8 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       onClick={() => setSegments(count)}
                       className={`py-1.5 rounded-lg border text-center font-bold transition-all ${
                         segments === count
-                          ? 'border-[#00e599] text-[#00e599] bg-[#00e599]/10'
-                          : 'border-[#1e2230] text-neutral-400 hover:text-white'
+                          ? 'border-[#00e599]/60 text-[#00e599] bg-[#00e599]/10'
+                          : 'border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
                       }`}
                     >
                       <span className="flex items-center justify-center gap-1">
@@ -326,7 +327,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-xs transition-colors"
+                  className="flex items-center gap-1.5 text-zinc-400 hover:text-zinc-200 text-xs transition-colors"
                 >
                   <Sliders className="w-3.5 h-3.5" />
                   <span>{isAr ? 'خيارات متقدمة (كوكيز وترويسات وبصمة)' : 'Advanced Options'}</span>
@@ -334,43 +335,43 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 </button>
 
                 {showAdvanced && (
-                  <div className="mt-2.5 p-3 rounded-xl bg-[#090a0f] border border-[#1e2230] space-y-2.5 animate-fade-in">
+                  <div className="mt-2.5 p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2.5 animate-in-fade">
                     <div>
-                      <label className="block text-neutral-400 text-[10px] mb-1">
-                        {isAr ? 'بصمة SHA-256 للمطابقة' : 'Expected SHA-256 Hash'}
+                      <label className="block text-zinc-400 text-[10px] mb-1">
+                        {isAr ? 'بصمة SHA-256 المتوقعة للمطابقة' : 'Expected SHA-256 Hash'}
                       </label>
                       <input
                         type="text"
                         value={checksum}
                         onChange={(e) => setChecksum(e.target.value)}
                         placeholder="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                        className="w-full bg-[#151822] border border-[#1e2230] rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-600 focus:outline-none"
+                        className="w-full bg-[#141720] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-neutral-400 text-[10px] mb-1">
-                        {isAr ? 'كوكيز الجلسة (Cookie)' : 'Cookie Header'}
+                      <label className="block text-zinc-400 text-[10px] mb-1">
+                        {isAr ? 'كوكيز الجلسة (Cookie Header)' : 'Cookie Header'}
                       </label>
                       <input
                         type="text"
                         value={cookie}
                         onChange={(e) => setCookie(e.target.value)}
                         placeholder="session=xyz; token=123"
-                        className="w-full bg-[#151822] border border-[#1e2230] rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-600 focus:outline-none"
+                        className="w-full bg-[#141720] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-neutral-400 text-[10px] mb-1">
-                        {isAr ? 'رابط الإحالة (Referer)' : 'Referer URL'}
+                      <label className="block text-zinc-400 text-[10px] mb-1">
+                        {isAr ? 'رابط الإحالة (Referer Header)' : 'Referer URL'}
                       </label>
                       <input
                         type="url"
                         value={referer}
                         onChange={(e) => setReferer(e.target.value)}
                         placeholder="https://example.com/download-page"
-                        className="w-full bg-[#151822] border border-[#1e2230] rounded-lg px-3 py-1.5 text-xs text-white placeholder-neutral-600 focus:outline-none"
+                        className="w-full bg-[#141720] border border-white/[0.06] rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -381,14 +382,14 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             /* Batch Mode */
             <div className="space-y-3">
               <div>
-                <div className="flex items-center justify-between mb-1.5 text-neutral-300">
+                <div className="flex items-center justify-between mb-1.5 text-zinc-300">
                   <label>{isAr ? 'قائمة الروابط (رابط في كل سطر)' : 'Batch URLs'}</label>
                   <button
                     type="button"
                     onClick={handlePasteClipboard}
                     className="text-[#00e599] hover:underline text-[11px]"
                   >
-                    {isAr ? 'لصق' : 'Paste'}
+                    {isAr ? 'لصق من الحافظة' : 'Paste'}
                   </button>
                 </div>
                 <textarea
@@ -397,16 +398,16 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   value={batchText}
                   onChange={(e) => setBatchText(e.target.value)}
                   placeholder={`https://example.com/file1.zip\nhttps://example.com/file2.iso`}
-                  className="w-full bg-[#090a0f] border border-[#1e2230] focus:border-[#00e599] rounded-xl p-3 text-xs text-white placeholder-neutral-500 focus:outline-none resize-none"
+                  className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl p-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none"
                 />
-                <div className="mt-1 text-[11px] text-neutral-400">
-                  {isAr ? 'الروابط المكتشفة:' : 'Valid links:'}{' '}
+                <div className="mt-1 text-[11px] text-zinc-400">
+                  {isAr ? 'الروابط الصالحة المكتشفة:' : 'Valid links:'}{' '}
                   <strong className="text-[#00e599]">{parsedBatchUrls.length}</strong>
                 </div>
               </div>
 
               <div>
-                <label className="block text-neutral-300 mb-1">
+                <label className="block text-zinc-300 mb-1">
                   {isAr ? 'المسارات لكل ملف' : 'Streams per file'}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
@@ -417,8 +418,8 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                       onClick={() => setSegments(count)}
                       className={`py-1.5 rounded-lg border text-center font-bold transition-all ${
                         segments === count
-                          ? 'border-[#00e599] text-[#00e599] bg-[#00e599]/10'
-                          : 'border-[#1e2230] text-neutral-400 hover:text-white'
+                          ? 'border-[#00e599]/60 text-[#00e599] bg-[#00e599]/10'
+                          : 'border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
                       }`}
                     >
                       {count}x
@@ -429,19 +430,19 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             </div>
           )}
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1e2230]">
+          {/* Modal Actions */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.06]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-neutral-400 hover:text-white transition-colors"
+              className="px-3.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </button>
             <button
               type="submit"
               disabled={mode === 'batch' && parsedBatchUrls.length === 0}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-lg font-semibold bg-[#00e599] text-[#090a0f] hover:bg-[#00e599]/90 disabled:opacity-40 transition-all active:scale-95"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 disabled:opacity-40 active:scale-[0.98] transition-all"
             >
               <ArrowDownToLine className="w-3.5 h-3.5" />
               <span>

@@ -70,13 +70,13 @@ export const TaskList: React.FC<TaskListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Filter and Actions Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-[#1e2230]">
-        {/* Status Pills & Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+        {/* Status Tabs, Categories & Search */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-[#0f1118] p-1 rounded-lg border border-[#1e2230] text-xs font-mono">
+          {/* Segmented Control Tabs */}
+          <div className="flex items-center gap-1 bg-[#0f1118] p-1 rounded-lg border border-white/[0.06] text-xs font-mono">
             {(['all', 'active', 'completed'] as const).map((tab) => {
               const label = tab === 'all' ? (isAr ? 'الكل' : 'All') : tab === 'active' ? (isAr ? 'النشطة' : 'Active') : (isAr ? 'المكتملة' : 'Done');
               const count = getStatusCount(tab);
@@ -84,10 +84,10 @@ export const TaskList: React.FC<TaskListProps> = ({
                 <button
                   key={tab}
                   onClick={() => setStatusFilter(tab)}
-                  className={`px-3 py-1 rounded-md transition-all ${
+                  className={`px-3 py-1 rounded-md transition-all text-xs ${
                     statusFilter === tab
-                      ? 'bg-white/10 text-white font-semibold shadow-sm'
-                      : 'text-neutral-400 hover:text-white'
+                      ? 'bg-white/[0.08] text-zinc-100 font-semibold shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {label} <span className="opacity-60 text-[10px]">({count})</span>
@@ -96,13 +96,13 @@ export const TaskList: React.FC<TaskListProps> = ({
             })}
           </div>
 
-          {/* Category Dropdown */}
-          <div className="flex items-center gap-1 bg-[#0f1118] px-2 py-1 rounded-lg border border-[#1e2230] text-xs font-mono text-neutral-400">
-            <Filter className="w-3 h-3 text-neutral-500" />
+          {/* Category Selector */}
+          <div className="flex items-center gap-1 bg-[#0f1118] px-2 py-1 rounded-lg border border-white/[0.06] text-xs font-mono text-zinc-400">
+            <Filter className="w-3 h-3 text-zinc-500" />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value as any)}
-              className="bg-transparent text-neutral-300 focus:outline-none cursor-pointer text-xs"
+              className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer text-xs"
             >
               <option value="all" className="bg-[#0f1118]">{isAr ? 'كل الفئات' : 'All Types'}</option>
               <option value="programs" className="bg-[#0f1118]">{isAr ? 'برامج' : 'Programs'}</option>
@@ -112,20 +112,20 @@ export const TaskList: React.FC<TaskListProps> = ({
             </select>
           </div>
 
-          {/* Search Input */}
+          {/* Search Box */}
           <div className="relative flex-1 sm:w-48">
-            <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={isAr ? 'بحث...' : 'Search...'}
-              className="w-full bg-[#0f1118] border border-[#1e2230] rounded-lg pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#00e599]/40 transition-colors"
+              placeholder={isAr ? 'بحث سريع...' : 'Search...'}
+              className="w-full bg-[#0f1118] border border-white/[0.06] rounded-lg pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#00e599]/40 transition-colors font-mono"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 rtl:left-2 rtl:right-auto top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                className="absolute right-2 rtl:left-2 rtl:right-auto top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -133,12 +133,12 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
         </div>
 
-        {/* Batch Actions */}
+        {/* Batch Actions Group */}
         <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs font-mono">
           {hasDownloading && onPauseAll && (
             <button
               onClick={onPauseAll}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 border border-[#1e2230] transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-300 hover:text-white hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
               title={isAr ? 'إيقاف الكل مؤقتاً' : 'Pause All'}
             >
               <Pause className="w-3 h-3" />
@@ -149,7 +149,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           {hasPaused && onResumeAll && (
             <button
               onClick={onResumeAll}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 border border-[#1e2230] transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 border border-white/[0.06] transition-colors"
               title={isAr ? 'استئناف الكل' : 'Resume All'}
             >
               <Play className="w-3 h-3 fill-current" />
@@ -160,8 +160,8 @@ export const TaskList: React.FC<TaskListProps> = ({
           {hasCompleted && (
             <button
               onClick={onClearCompleted}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-400/10 border border-[#1e2230] transition-colors"
-              title={isAr ? 'مسح المكتملة' : 'Clear Done'}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.06] transition-colors"
+              title={isAr ? 'مسح التنزيلات المكتملة' : 'Clear Done'}
             >
               <Trash2 className="w-3 h-3" />
               <span>{isAr ? 'مسح المكتملة' : 'Clear Done'}</span>
@@ -170,24 +170,24 @@ export const TaskList: React.FC<TaskListProps> = ({
         </div>
       </div>
 
-      {/* Tasks List */}
+      {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-[#1e2230] rounded-2xl bg-[#0f1118]/30">
-          <DownloadCloud className="w-10 h-10 text-neutral-600 mx-auto mb-2.5" />
-          <h4 className="text-sm font-semibold text-white mb-1">
+        <div className="text-center py-20 border border-dashed border-white/[0.06] rounded-2xl bg-[#0f1118]/20 animate-in-fade">
+          <DownloadCloud className="w-10 h-10 text-zinc-600 mx-auto mb-2.5" />
+          <h4 className="text-sm font-semibold text-zinc-200 mb-1">
             {searchQuery
-              ? isAr ? 'لا توجد نتائج مطابقة' : 'No matching downloads'
-              : isAr ? 'لا توجد تنزيلات حالياً' : 'No downloads yet'}
+              ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No matching downloads'
+              : isAr ? 'لا توجد تنزيلات حالياً' : 'No downloads in this view'}
           </h4>
-          <p className="text-xs text-neutral-400 max-w-sm mx-auto mb-4">
+          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
             {searchQuery
-              ? isAr ? 'جرّب كلمة مفتاحية أخرى' : 'Try searching for something else'
-              : isAr ? 'أضف رابط تنزيل مباشر للبدء فوراً' : 'Add a direct link to accelerate downloading'}
+              ? isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح شريط البحث' : 'Try searching for something else or clear the query'
+              : isAr ? 'أضف رابط تنزيل مباشر أو اضغط ⌘N للبدء' : 'Add a download link or press ⌘N to start'}
           </p>
           {!searchQuery && (
             <button
               onClick={onOpenAddModal}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#090a0f] hover:bg-[#00e599]/90 transition-colors"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all"
             >
               {isAr ? 'إضافة تنزيل' : 'New Download'}
             </button>
