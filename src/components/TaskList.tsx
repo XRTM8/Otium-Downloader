@@ -8,7 +8,8 @@ import {
   Filter,
   Upload,
   Download,
-  Check
+  Check,
+  CheckSquare
 } from 'lucide-react';
 import { OtiumLogo } from './OtiumLogo';
 import type { DownloadTask, TaskCategory } from '../types/downloader';
@@ -20,7 +21,7 @@ interface TaskListProps {
   lang: 'ar' | 'en';
   onPause: (id: string) => void;
   onResume: (id: string) => void;
-  onRemove: (id: string) => void;
+  onRemove: (id: string, deleteFileFromDisk?: boolean) => void;
   onClearCompleted: () => void;
   onOpenAddModal: () => void;
   onStartImmediately?: (id: string) => void;
@@ -46,8 +47,19 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedExport, setCopiedExport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAr = lang === 'ar';
+
+  const toggleSelectTask = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleExportUrls = () => {
     const urls = downloadManager.exportUrls(statusFilter === 'all' ? undefined : statusFilter);
@@ -103,6 +115,28 @@ export const TaskList: React.FC<TaskListProps> = ({
       return tasks.filter((t) => t.status === 'downloading' || t.status === 'paused' || t.status === 'queued').length;
     }
     return tasks.filter((t) => t.status === 'completed').length;
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredTasks.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredTasks.map((t) => t.id)));
+    }
+  };
+
+  const handleBatchPauseSelected = () => {
+    downloadManager.pauseTasks(Array.from(selectedIds));
+  };
+
+  const handleBatchResumeSelected = () => {
+    downloadManager.resumeTasks(Array.from(selectedIds));
+  };
+
+  const handleBatchRemoveSelected = () => {
+    downloadManager.removeTasks(Array.from(selectedIds), false);
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
   };
 
   return (
@@ -191,14 +225,32 @@ export const TaskList: React.FC<TaskListProps> = ({
           </button>
 
           {tasks.length > 0 && (
-            <button
-              onClick={handleExportUrls}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
-              title={isAr ? 'نسخ روابط التنزيل الحالية للحافظة' : 'Copy download URLs to clipboard'}
-            >
-              {copiedExport ? <Check className="w-3 h-3 text-[#00e599]" /> : <Download className="w-3 h-3" />}
-              <span>{copiedExport ? (isAr ? 'تم النسخ ✓' : 'Copied ✓') : (isAr ? 'تصدير' : 'Export')}</span>
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  if (isSelectionMode) setSelectedIds(new Set());
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
+                  isSelectionMode
+                    ? 'bg-[#00e599]/10 border-[#00e599]/40 text-[#00e599]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border-white/[0.06]'
+                }`}
+                title={isAr ? 'وضع التحديد المتعدد' : 'Multi-select mode'}
+              >
+                <CheckSquare className="w-3 h-3" />
+                <span>{isAr ? 'تحديد' : 'Select'}</span>
+              </button>
+
+              <button
+                onClick={handleExportUrls}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
+                title={isAr ? 'نسخ روابط التنزيل الحالية للحافظة' : 'Copy download URLs to clipboard'}
+              >
+                {copiedExport ? <Check className="w-3 h-3 text-[#00e599]" /> : <Download className="w-3 h-3" />}
+                <span>{copiedExport ? (isAr ? 'تم النسخ ✓' : 'Copied ✓') : (isAr ? 'تصدير' : 'Export')}</span>
+              </button>
+            </>
           )}
           {hasDownloading && onPauseAll && (
             <button
@@ -235,6 +287,57 @@ export const TaskList: React.FC<TaskListProps> = ({
         </div>
       </div>
 
+      {/* Selection Mode Bar */}
+      {isSelectionMode && filteredTasks.length > 0 && (
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0f1118] border border-white/[0.08] text-xs font-mono animate-in-fade shadow-lg">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSelectAll}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-zinc-300 hover:text-white bg-white/[0.04] transition-colors"
+            >
+              <span>{selectedIds.size === filteredTasks.length ? (isAr ? 'إلغاء تحديد الكل' : 'Deselect All') : (isAr ? 'تحديد الكل' : 'Select All')}</span>
+            </button>
+            <span className="text-[#00e599] font-semibold text-[11px]">
+              {selectedIds.size} {isAr ? 'محدد' : 'selected'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {selectedIds.size > 0 && (
+              <>
+                <button
+                  onClick={handleBatchPauseSelected}
+                  className="px-2 py-1 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-colors"
+                >
+                  {isAr ? 'إيقاف' : 'Pause'}
+                </button>
+                <button
+                  onClick={handleBatchResumeSelected}
+                  className="px-2 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
+                >
+                  {isAr ? 'استئناف' : 'Resume'}
+                </button>
+                <button
+                  onClick={handleBatchRemoveSelected}
+                  className="px-2 py-1 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors"
+                >
+                  {isAr ? 'حذف' : 'Delete'}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                setIsSelectionMode(false);
+                setSelectedIds(new Set());
+              }}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
         <div className="text-center py-20 border border-dashed border-white/[0.06] rounded-2xl bg-[#0f1118]/25 animate-in-fade relative overflow-hidden">
@@ -267,6 +370,9 @@ export const TaskList: React.FC<TaskListProps> = ({
               key={task.id}
               task={task}
               lang={lang}
+              isSelected={selectedIds.has(task.id)}
+              selectionMode={isSelectionMode}
+              onToggleSelect={toggleSelectTask}
               onPause={onPause}
               onResume={onResume}
               onRemove={onRemove}

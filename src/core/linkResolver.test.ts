@@ -35,6 +35,28 @@ describe('linkResolver', () => {
     expect(res.suggestedHeaders?.Referer).toBe('https://speedtest.server.com/');
   });
 
+  it('resolves Hugging Face blob links to direct resolve links', () => {
+    const raw = 'https://huggingface.co/openai/whisper-large/blob/main/model.safetensors';
+    const res = resolveUniversalLink(raw);
+    expect(res.resolvedUrl).toBe('https://huggingface.co/openai/whisper-large/resolve/main/model.safetensors');
+    expect(res.serviceName).toBe('Hugging Face');
+  });
+
+  it('resolves Internet Archive details links to direct download links', () => {
+    const raw = 'https://archive.org/details/msdos_Doom_1993';
+    const res = resolveUniversalLink(raw);
+    expect(res.resolvedUrl).toBe('https://archive.org/download/msdos_Doom_1993');
+    expect(res.serviceName).toBe('Internet Archive');
+  });
+
+  it('extracts embedded Basic Auth credentials into Authorization header', () => {
+    const raw = 'https://admin:secret123@downloads.company.internal/firmware.bin';
+    const res = resolveUniversalLink(raw);
+    expect(res.resolvedUrl).toBe('https://downloads.company.internal/firmware.bin');
+    expect(res.suggestedHeaders?.Authorization).toBeDefined();
+    expect(res.suggestedHeaders?.Authorization).toContain('Basic ');
+  });
+
   it('detects likely download URLs accurately', () => {
     expect(isLikelyDownloadUrl('https://example.com/dist/setup.exe')).toBe(true);
     expect(isLikelyDownloadUrl('https://example.com/video.mp4')).toBe(true);

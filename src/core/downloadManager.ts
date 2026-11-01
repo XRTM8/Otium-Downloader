@@ -73,6 +73,9 @@ export class DownloadManager {
       this.soundEnabled = parsed.enableSound;
       soundEngine.enabled = this.soundEnabled;
     }
+    if (typeof parsed.soundVolume === 'number') {
+      soundEngine.volume = Math.max(0, Math.min(1, parsed.soundVolume));
+    }
   }
 
   private saveSettingsToStorage() {
@@ -81,6 +84,7 @@ export class DownloadManager {
       globalSpeedLimitBytes: this.speedLimitBytes,
       enableNotifications: this.notificationsEnabled,
       enableSound: this.soundEnabled,
+      soundVolume: soundEngine.volume,
       defaultDirectory: this.defaultDownloadDir || 'Downloads'
     };
     saveSettingsToStorage(payload);
@@ -208,6 +212,7 @@ export class DownloadManager {
       globalSpeedLimitBytes: this.speedLimitBytes,
       enableNotifications: this.notificationsEnabled,
       enableSound: this.soundEnabled,
+      soundVolume: soundEngine.volume,
       defaultDirectory: this.defaultDownloadDir || 'Downloads'
     };
   }
@@ -236,6 +241,9 @@ export class DownloadManager {
     if (settings.enableSound !== undefined) {
       this.soundEnabled = settings.enableSound;
       soundEngine.enabled = this.soundEnabled;
+    }
+    if (settings.soundVolume !== undefined) {
+      soundEngine.volume = Math.max(0, Math.min(1, settings.soundVolume));
     }
     this.saveSettingsToStorage();
     this.notify(true);
@@ -454,6 +462,7 @@ export class DownloadManager {
     this.tasks.set(id, task);
     this.speedSamples.set(id, { lastBytes: 0, lastTime: Date.now() });
     this.scheduleStorageSave();
+    soundEngine.playStartSweep();
     this.notify(true);
 
     if (isTauri() && initialStatus === 'downloading') {
@@ -568,6 +577,7 @@ export class DownloadManager {
       task.errorMessage = err instanceof Error ? err.message : String(err);
       task.speedBytesPerSec = 0;
       task.etaSeconds = 0;
+      soundEngine.playErrorTone();
       this.showNotification('خطأ في التنزيل ⚠️', `تعذر تنزيل ${task.filename}: ${task.errorMessage}`);
       this.scheduleStorageSave();
       this.notify(true);
@@ -688,11 +698,15 @@ export class DownloadManager {
     this.notify(true);
   }
 
-  public removeTask(id: string) {
+  public removeTask(id: string, deleteFileFromDisk: boolean = false) {
+    const task = this.tasks.get(id);
     if (isTauri()) {
       import('@tauri-apps/api/core').then(({ invoke }) => {
         invoke('cancel_task', { taskId: id }).catch(() => {});
         invoke('cleanup_task', { taskId: id }).catch(() => {});
+        if (deleteFileFromDisk && task?.savePath) {
+          invoke('delete_file_item', { filePath: task.savePath }).catch(() => {});
+        }
       });
     }
     this.tasks.delete(id);
@@ -700,6 +714,27 @@ export class DownloadManager {
     this.scheduleStorageSave();
     this.notify(true);
     this.processQueue();
+  }
+
+  public pauseTasks(ids: string[]) {
+    for (const id of ids) {
+      this.pauseTask(id);
+    }
+    this.notify(true);
+  }
+
+  public resumeTasks(ids: string[]) {
+    for (const id of ids) {
+      this.resumeTask(id);
+    }
+    this.notify(true);
+  }
+
+  public removeTasks(ids: string[], deleteFiles: boolean = false) {
+    for (const id of ids) {
+      this.removeTask(id, deleteFiles);
+    }
+    this.notify(true);
   }
 
   public clearCompleted() {

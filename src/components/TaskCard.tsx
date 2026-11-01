@@ -11,7 +11,8 @@ import {
   Check,
   ShieldCheck,
   ExternalLink,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-react';
 import type { DownloadTask } from '../types/downloader';
 import { formatBytes, formatSpeed, formatEta, humanizeErrorMessage } from '../core/segmentation';
@@ -22,9 +23,12 @@ interface TaskCardProps {
   lang: 'ar' | 'en';
   onPause: (id: string) => void;
   onResume: (id: string) => void;
-  onRemove: (id: string) => void;
+  onRemove: (id: string, deleteFileFromDisk?: boolean) => void;
   onStartImmediately?: (id: string) => void;
   onRestart?: (id: string) => void;
+  isSelected?: boolean;
+  selectionMode?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({
@@ -34,10 +38,14 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onResume,
   onRemove,
   onStartImmediately,
-  onRestart
+  onRestart,
+  isSelected = false,
+  selectionMode = false,
+  onToggleSelect
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const isAr = lang === 'ar';
   const progressPercent =
@@ -107,6 +115,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
+          {selectionMode && (
+            <button
+              type="button"
+              onClick={() => onToggleSelect?.(task.id)}
+              className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all shrink-0 ${
+                isSelected
+                  ? 'bg-[#00e599] border-[#00e599] text-[#08090c]'
+                  : 'border-white/[0.2] bg-white/[0.04] hover:border-white/[0.4]'
+              }`}
+            >
+              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+            </button>
+          )}
+
           {/* File Extension Badge Icon */}
           <div className="shrink-0">
             {task.status === 'completed' ? (
@@ -251,13 +273,44 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             {copiedLink ? <Check className="w-3.5 h-3.5 text-[#00e599]" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
 
-          <button
-            onClick={() => onRemove(task.id)}
-            className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-            title={isAr ? 'حذف' : 'Remove'}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {isConfirmingDelete ? (
+            <div className="flex items-center gap-1 animate-in-fade bg-[#141722] p-1 rounded-lg border border-rose-500/30">
+              <button
+                onClick={() => {
+                  onRemove(task.id, false);
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-mono text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] transition-colors"
+                title={isAr ? 'حذف من القائمة فقط' : 'Remove from list only'}
+              >
+                {isAr ? 'من القائمة' : 'List only'}
+              </button>
+              <button
+                onClick={() => {
+                  onRemove(task.id, true);
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-0.5 rounded text-[10px] font-mono text-rose-400 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 transition-colors"
+                title={isAr ? 'حذف الملف نهائياً من القرص' : 'Delete file permanently from disk'}
+              >
+                {isAr ? 'مع الملف' : 'With file'}
+              </button>
+              <button
+                onClick={() => setIsConfirmingDelete(false)}
+                className="p-1 rounded text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsConfirmingDelete(true)}
+              className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+              title={isAr ? 'حذف' : 'Remove'}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

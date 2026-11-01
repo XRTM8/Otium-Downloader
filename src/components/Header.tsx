@@ -7,9 +7,11 @@ import {
   RefreshCw,
   CheckCircle2,
   ShieldAlert,
-  FolderOpen
+  FolderOpen,
+  HelpCircle
 } from 'lucide-react';
 import { OtiumLogo } from './OtiumLogo';
+import { ThroughputSparkline } from './ThroughputSparkline';
 import type { DownloadStats } from '../types/downloader';
 import { formatSpeed, formatBytes } from '../core/segmentation';
 import { fetchReleaseInfo, isNewerVersion } from '../core/updates/releaseFeed';
@@ -18,8 +20,10 @@ import { downloadManager } from '../core/downloadManager';
 interface HeaderProps {
   stats: DownloadStats;
   lang: 'ar' | 'en';
+  speedHistory?: number[];
   isSettingsOpen?: boolean;
   onToggleSettings?: (open: boolean) => void;
+  onOpenShortcutsModal?: () => void;
   onToggleLang: () => void;
   onOpenAddModal: () => void;
 }
@@ -29,8 +33,10 @@ const CURRENT_VERSION = '1.2.0';
 export const Header: React.FC<HeaderProps> = ({
   stats,
   lang,
+  speedHistory,
   isSettingsOpen: controlledSettingsOpen,
   onToggleSettings,
+  onOpenShortcutsModal,
   onToggleLang,
   onOpenAddModal
 }) => {
@@ -49,6 +55,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [speedLimit, setSpeedLimit] = useState(currentSettings.globalSpeedLimitBytes);
   const [notifications, setNotifications] = useState(currentSettings.enableNotifications);
   const [sound, setSound] = useState(currentSettings.enableSound ?? true);
+  const [soundVolume, setSoundVolume] = useState(currentSettings.soundVolume ?? 0.5);
 
   const isAr = lang === 'ar';
 
@@ -91,6 +98,11 @@ export const Header: React.FC<HeaderProps> = ({
     downloadManager.updateSettings({ enableSound: next });
   };
 
+  const handleVolumeChange = (vol: number) => {
+    setSoundVolume(vol);
+    downloadManager.updateSettings({ soundVolume: vol });
+  };
+
   return (
     <>
       <header className="sticky top-0 z-30 bg-[#08090c]/85 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 py-2.5 transition-all">
@@ -117,6 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e599]"></span>
                 </span>
                 <span className="font-semibold tabular-nums tracking-tight">{formatSpeed(stats.currentTotalSpeed)}</span>
+                <ThroughputSparkline history={speedHistory || []} className="w-14 h-4 hidden sm:block" />
                 <span className="text-emerald-500/40">•</span>
                 <span className="text-emerald-300/80 text-[11px] font-normal">{stats.activeCount} {isAr ? 'نشط' : 'active'}</span>
               </div>
@@ -146,6 +159,16 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-[11px] font-medium">{isAr ? 'EN' : 'العربية'}</span>
               </span>
             </button>
+
+            {onOpenShortcutsModal && (
+              <button
+                onClick={onOpenShortcutsModal}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
+                title={isAr ? 'اختصارات لوحة المفاتيح (?)' : 'Keyboard Shortcuts (?)'}
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={() => setSettingsOpen(true)}
@@ -278,7 +301,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
                   <span className="text-zinc-300">
-                    {isAr ? 'نغمة صوتية عند الاكتمال' : 'Chime on Completion'}
+                    {isAr ? 'المؤثرات الصوتية' : 'Sound Effects'}
                   </span>
                   <button
                     onClick={handleSoundToggle}
@@ -293,6 +316,21 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                   </button>
                 </div>
+
+                {sound && (
+                  <div className="flex items-center justify-between pt-2 border-t border-white/[0.04] text-[11px]">
+                    <span className="text-zinc-400">{isAr ? 'مستوى الصوت' : 'Volume'}</span>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1"
+                      step="0.05"
+                      value={soundVolume}
+                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                      className="w-24 accent-[#00e599] cursor-pointer"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Version Card */}

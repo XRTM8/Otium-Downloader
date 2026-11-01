@@ -401,7 +401,7 @@ async fn download_segment(
         .map_err(|e| format!("Failed to open destination: {}", e))?;
 
     let mut retries = 0;
-    const MAX_RETRIES: u32 = 3;
+    const MAX_RETRIES: u32 = 5;
 
     let mut last_emit = std::time::Instant::now();
     let mut last_emitted_downloaded = downloaded;
@@ -436,7 +436,8 @@ async fn download_segment(
                 if retries > MAX_RETRIES || token.load(Ordering::Relaxed) {
                     return Err(format!("Network connect failed after {} retries: {}", retries - 1, e));
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(1000 * retries as u64)).await;
+                let backoff_ms = 500 * (1u64 << retries.min(5));
+                tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
                 continue;
             }
         };
@@ -525,7 +526,8 @@ async fn download_segment(
             if retries > MAX_RETRIES || token.load(Ordering::Relaxed) {
                 return Err(format!("Stream aborted on segment {} after {} retries", segment_index, retries));
             }
-            tokio::time::sleep(std::time::Duration::from_millis(1000 * retries as u64)).await;
+            let backoff_ms = 500 * (1u64 << retries.min(5));
+            tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
             continue;
         }
 
@@ -602,6 +604,21 @@ async fn open_file_item(app: AppHandle, file_path: String) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn delete_file_item(file_path: String) -> Result<(), String> {
+    let clean = file_path.trim();
+    if clean.is_empty() {
+        return Ok(());
+    }
+    let path = Path::new(clean);
+    if path.exists() && path.is_file() {
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|e| format!("Failed to delete file from disk: {}", e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let task_manager = Arc::new(TaskManager::default());
@@ -619,7 +636,8 @@ pub fn run() {
             download_segment,
             verify_file_sha256,
             open_destination_folder,
-            open_file_item
+            open_file_item,
+            delete_file_item
         ])
         .run(tauri::generate_context!())
         .expect("error while running otium downloader application");

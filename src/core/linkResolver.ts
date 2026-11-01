@@ -19,6 +19,25 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
 
   try {
     const url = new URL(trimmed);
+    const suggestedHeaders: Record<string, string> = {};
+
+    // 0. Extract Basic Auth credentials if present in authority
+    if (url.username || url.password) {
+      try {
+        const credentials = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+        let base64 = '';
+        if (typeof btoa !== 'undefined') {
+          base64 = btoa(credentials);
+        } else if (typeof (globalThis as unknown as { Buffer?: { from: (s: string) => { toString: (enc: string) => string } } }).Buffer !== 'undefined') {
+          base64 = (globalThis as any).Buffer.from(credentials).toString('base64');
+        }
+        if (base64) {
+          suggestedHeaders['Authorization'] = `Basic ${base64}`;
+        }
+        url.username = '';
+        url.password = '';
+      } catch {}
+    }
 
     // 1. Google Drive direct export resolver
     if (url.hostname.includes('drive.google.com')) {
@@ -28,6 +47,7 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
         return {
           resolvedUrl: `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`,
           originalUrl: trimmed,
+          suggestedHeaders,
           isSpecialHost: true,
           serviceName: 'Google Drive'
         };
@@ -38,6 +58,7 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
         return {
           resolvedUrl: `https://drive.google.com/uc?export=download&id=${idParam}`,
           originalUrl: trimmed,
+          suggestedHeaders,
           isSpecialHost: true,
           serviceName: 'Google Drive'
         };
@@ -50,6 +71,7 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
       return {
         resolvedUrl: url.toString(),
         originalUrl: trimmed,
+        suggestedHeaders,
         isSpecialHost: true,
         serviceName: 'Dropbox'
       };
@@ -61,20 +83,43 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
       return {
         resolvedUrl: rawUrl,
         originalUrl: trimmed,
+        suggestedHeaders,
         isSpecialHost: true,
         serviceName: 'GitHub Raw'
       };
     }
 
-    // 4. Default: Auto-inject origin Referer for anti-hotlinking protection
-    const defaultHeaders: Record<string, string> = {
-      Referer: `${url.origin}/`
-    };
+    // 4. Hugging Face Model / Dataset Weights (/blob/ -> /resolve/)
+    if (url.hostname.includes('huggingface.co') && url.pathname.includes('/blob/')) {
+      const resolved = url.toString().replace('/blob/', '/resolve/');
+      return {
+        resolvedUrl: resolved,
+        originalUrl: trimmed,
+        suggestedHeaders,
+        isSpecialHost: true,
+        serviceName: 'Hugging Face'
+      };
+    }
+
+    // 5. Internet Archive Details to Direct Download (/details/ -> /download/)
+    if (url.hostname.includes('archive.org') && url.pathname.includes('/details/')) {
+      const resolved = url.toString().replace('/details/', '/download/');
+      return {
+        resolvedUrl: resolved,
+        originalUrl: trimmed,
+        suggestedHeaders,
+        isSpecialHost: true,
+        serviceName: 'Internet Archive'
+      };
+    }
+
+    // 6. Default: Auto-inject origin Referer for anti-hotlinking protection
+    suggestedHeaders['Referer'] = `${url.origin}/`;
 
     return {
-      resolvedUrl: trimmed,
+      resolvedUrl: url.toString(),
       originalUrl: trimmed,
-      suggestedHeaders: defaultHeaders
+      suggestedHeaders
     };
   } catch {
     return {

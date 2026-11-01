@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
+import { ShortcutsModal } from './components/ShortcutsModal';
 import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
@@ -20,25 +21,36 @@ export function App() {
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
   const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
+  const [speedHistory, setSpeedHistory] = useState<number[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   useEffect(() => {
     // Initial data fetch
     setTasks(downloadManager.getTasks());
     setStats(downloadManager.getStats());
+    setSpeedHistory(downloadManager.getSpeedHistory());
 
     // Subscribe to state changes
     const unsubscribe = downloadManager.subscribe(() => {
       setTasks([...downloadManager.getTasks()]);
       setStats(downloadManager.getStats());
+      setSpeedHistory([...downloadManager.getSpeedHistory()]);
     });
 
     // Global Keyboard Shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = document.activeElement?.tagName;
       const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+
+      // ?: Toggle Keyboard Shortcuts Cheatsheet
+      if (e.key === '?' && !isInputActive) {
+        e.preventDefault();
+        setIsShortcutsOpen((p) => !p);
+        return;
+      }
 
       // Ctrl/Cmd + N: New Download
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
@@ -60,6 +72,7 @@ export function App() {
       if (e.key === 'Escape') {
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
+        setIsShortcutsOpen(false);
         return;
       }
 
@@ -195,8 +208,10 @@ export function App() {
       <Header
         stats={stats}
         lang={lang}
+        speedHistory={speedHistory}
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={setIsSettingsOpen}
+        onOpenShortcutsModal={() => setIsShortcutsOpen(true)}
         onToggleLang={handleToggleLang}
         onOpenAddModal={() => {
           setInitialAddUrl(undefined);
@@ -214,7 +229,7 @@ export function App() {
           onResume={(id) => downloadManager.resumeTask(id)}
           onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
           onRestart={(id) => downloadManager.restartTask(id)}
-          onRemove={(id) => downloadManager.removeTask(id)}
+          onRemove={(id, deleteDisk) => downloadManager.removeTask(id, deleteDisk)}
           onClearCompleted={() => downloadManager.clearCompleted()}
           onOpenAddModal={() => {
             setInitialAddUrl(undefined);
@@ -239,6 +254,13 @@ export function App() {
         }}
         onAdd={handleAddTask}
         onAddBatch={handleAddBatch}
+      />
+
+      {/* Keyboard Shortcuts Cheatsheet Modal */}
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        lang={lang}
+        onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
   );

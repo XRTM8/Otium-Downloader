@@ -50,5 +50,6 @@ export interface AppSettings {
   globalSpeedLimitBytes: number;
   enableNotifications: boolean;
   enableSound: boolean;
+  soundVolume?: number;
   defaultDirectory: string;
 }

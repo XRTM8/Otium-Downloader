@@ -271,4 +271,24 @@ describe('DownloadManager', () => {
 
     mgr.destroy();
   });
+
+  it('handles batch pause, resume, and remove actions on selected task ids', () => {
+    const mgr = new DownloadManager();
+    const id1 = mgr.addTask('https://example.com/batch1.zip');
+    const id2 = mgr.addTask('https://example.com/batch2.zip');
+    const id3 = mgr.addTask('https://example.com/batch3.zip');
+
+    mgr.pauseTasks([id1, id2]);
+    expect(mgr.getTasks().find((t) => t.id === id1)?.status).toBe('paused');
+    expect(mgr.getTasks().find((t) => t.id === id2)?.status).toBe('paused');
+
+    mgr.resumeTasks([id1]);
+    expect(mgr.getTasks().find((t) => t.id === id1)?.status).toBe('downloading');
+
+    mgr.removeTasks([id1, id3]);
+    expect(mgr.getTasks().length).toBe(1);
+    expect(mgr.getTasks()[0].id).toBe(id2);
+
+    mgr.destroy();
+  });
 });
