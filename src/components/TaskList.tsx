@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DownloadCloud, Trash2, Search, Pause, Play, X, Filter, ArrowUpDown } from 'lucide-react';
+import { DownloadCloud, Trash2, Search, Pause, Play, X, Filter } from 'lucide-react';
 import type { DownloadTask, TaskCategory } from '../types/downloader';
 import { TaskCard } from './TaskCard';
 
@@ -30,9 +30,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   onPauseAll,
   onResumeAll
 }) => {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'queued' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'size' | 'speed' | 'name'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
   const isAr = lang === 'ar';
 
@@ -42,10 +41,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const filteredTasks = tasks.filter((t) => {
     // Status Filter
-    if (statusFilter === 'active' && !(t.status === 'downloading' || t.status === 'paused')) {
-      return false;
-    }
-    if (statusFilter === 'queued' && t.status !== 'queued') {
+    if (statusFilter === 'active' && !(t.status === 'downloading' || t.status === 'paused' || t.status === 'queued')) {
       return false;
     }
     if (statusFilter === 'completed' && t.status !== 'completed') {
@@ -60,118 +56,71 @@ export const TaskList: React.FC<TaskListProps> = ({
     // Search Query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = t.filename.toLowerCase().includes(q);
-      const matchUrl = t.url.toLowerCase().includes(q);
-      return matchName || matchUrl;
+      return t.filename.toLowerCase().includes(q) || t.url.toLowerCase().includes(q);
     }
     return true;
   });
 
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
-    if (sortBy === 'newest') return b.createdAt - a.createdAt;
-    if (sortBy === 'size') return b.totalBytes - a.totalBytes;
-    if (sortBy === 'speed') return b.speedBytesPerSec - a.speedBytesPerSec;
-    if (sortBy === 'name') return a.filename.localeCompare(b.filename);
-    return 0;
-  });
-
-  const getStatusLabel = (tab: 'all' | 'active' | 'queued' | 'completed') => {
-    switch (tab) {
-      case 'all': return isAr ? 'الكل' : 'All';
-      case 'active': return isAr ? 'النشطة' : 'Active';
-      case 'queued': return isAr ? 'في الانتظار' : 'Queued';
-      case 'completed': return isAr ? 'المكتملة' : 'Done';
-    }
-  };
-
-  const getStatusCount = (tab: 'all' | 'active' | 'queued' | 'completed') => {
+  const getStatusCount = (tab: 'all' | 'active' | 'completed') => {
     if (tab === 'all') return tasks.length;
     if (tab === 'active') {
-      return tasks.filter((t) => t.status === 'downloading' || t.status === 'paused').length;
-    }
-    if (tab === 'queued') {
-      return tasks.filter((t) => t.status === 'queued').length;
+      return tasks.filter((t) => t.status === 'downloading' || t.status === 'paused' || t.status === 'queued').length;
     }
     return tasks.filter((t) => t.status === 'completed').length;
   };
 
-  const getCategoryLabel = (cat: TaskCategory | 'all') => {
-    switch (cat) {
-      case 'all': return isAr ? 'كل الأنواع' : 'All Types';
-      case 'programs': return isAr ? 'برامج' : 'Programs';
-      case 'media': return isAr ? 'وسائط' : 'Media';
-      case 'documents': return isAr ? 'مستندات' : 'Docs';
-      case 'archives': return isAr ? 'أرشيف' : 'Archives';
-      default: return isAr ? 'أخرى' : 'Other';
-    }
-  };
-
   return (
     <div className="space-y-4">
-      {/* Sub-header Filter & Control Bar */}
+      {/* Filter and Actions Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-[#1e2230]">
-        {/* Left: Filter Tabs + Search */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status Pills */}
-          <div className="flex items-center gap-1.5 bg-[#0e111a] p-1 rounded-xl border border-[#1e2230]">
-            {(['all', 'active', 'queued', 'completed'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setStatusFilter(tab)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono transition-all ${
-                  statusFilter === tab
-                    ? 'bg-[#00e599]/15 text-[#00e599] font-bold border border-[#00e599]/40 shadow-sm'
-                    : 'text-neutral-400 hover:text-white border border-transparent'
-                }`}
-              >
-                {getStatusLabel(tab)}
-                <span className="ml-1.5 rtl:mr-1.5 opacity-60 text-[10px]">
-                  ({getStatusCount(tab)})
-                </span>
-              </button>
-            ))}
+        {/* Status Pills & Search */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1 bg-[#0f1118] p-1 rounded-lg border border-[#1e2230] text-xs font-mono">
+            {(['all', 'active', 'completed'] as const).map((tab) => {
+              const label = tab === 'all' ? (isAr ? 'الكل' : 'All') : tab === 'active' ? (isAr ? 'النشطة' : 'Active') : (isAr ? 'المكتملة' : 'Done');
+              const count = getStatusCount(tab);
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setStatusFilter(tab)}
+                  className={`px-3 py-1 rounded-md transition-all ${
+                    statusFilter === tab
+                      ? 'bg-white/10 text-white font-semibold shadow-sm'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {label} <span className="opacity-60 text-[10px]">({count})</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Category Dropdown */}
-          <div className="flex items-center gap-1 bg-[#0e111a] px-2 py-1 rounded-xl border border-[#1e2230] text-xs font-mono text-neutral-400">
+          <div className="flex items-center gap-1 bg-[#0f1118] px-2 py-1 rounded-lg border border-[#1e2230] text-xs font-mono text-neutral-400">
             <Filter className="w-3 h-3 text-neutral-500" />
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value as any)}
               className="bg-transparent text-neutral-300 focus:outline-none cursor-pointer text-xs"
             >
-              {(['all', 'programs', 'media', 'documents', 'archives', 'other'] as const).map((cat) => (
-                <option key={cat} value={cat} className="bg-[#0c0e14] text-white">
-                  {getCategoryLabel(cat)}
-                </option>
-              ))}
+              <option value="all" className="bg-[#0f1118]">{isAr ? 'كل الفئات' : 'All Types'}</option>
+              <option value="programs" className="bg-[#0f1118]">{isAr ? 'برامج' : 'Programs'}</option>
+              <option value="media" className="bg-[#0f1118]">{isAr ? 'وسائط' : 'Media'}</option>
+              <option value="documents" className="bg-[#0f1118]">{isAr ? 'مستندات' : 'Docs'}</option>
+              <option value="archives" className="bg-[#0f1118]">{isAr ? 'أرشيف' : 'Archives'}</option>
             </select>
           </div>
 
-          {/* Sort Selector */}
-          <div className="flex items-center gap-1 bg-[#0e111a] px-2 py-1 rounded-xl border border-[#1e2230] text-xs font-mono text-neutral-400">
-            <ArrowUpDown className="w-3 h-3 text-neutral-500" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-transparent text-neutral-300 focus:outline-none cursor-pointer text-xs"
-            >
-              <option value="newest" className="bg-[#0c0e14]">{isAr ? 'الأحدث' : 'Newest'}</option>
-              <option value="size" className="bg-[#0c0e14]">{isAr ? 'الأكبر حجماً' : 'Largest Size'}</option>
-              <option value="speed" className="bg-[#0c0e14]">{isAr ? 'الأسرع' : 'Fastest'}</option>
-              <option value="name" className="bg-[#0c0e14]">{isAr ? 'الاسم' : 'Name (A-Z)'}</option>
-            </select>
-          </div>
-
-          {/* Quick Search Input */}
-          <div className="relative flex-1 sm:w-44">
+          {/* Search Input */}
+          <div className="relative flex-1 sm:w-48">
             <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isAr ? 'بحث...' : 'Search...'}
-              className="w-full bg-[#0c0e14] border border-[#1e2230] rounded-xl pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1.5 text-xs text-neutral-200 placeholder-neutral-500 focus:outline-none focus:border-[#00e599]/50 transition-colors"
+              className="w-full bg-[#0f1118] border border-[#1e2230] rounded-lg pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-[#00e599]/40 transition-colors"
             />
             {searchQuery && (
               <button
@@ -184,13 +133,13 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
         </div>
 
-        {/* Right: Batch Controls */}
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        {/* Batch Actions */}
+        <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs font-mono">
           {hasDownloading && onPauseAll && (
             <button
               onClick={onPauseAll}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono bg-[#141824] hover:bg-[#1a2030] text-amber-300 border border-amber-500/30 transition-colors"
-              title={isAr ? 'إيقاف كل التنزيلات النشطة مؤقتاً' : 'Pause all active downloads'}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-neutral-300 hover:text-white hover:bg-white/5 border border-[#1e2230] transition-colors"
+              title={isAr ? 'إيقاف الكل مؤقتاً' : 'Pause All'}
             >
               <Pause className="w-3 h-3" />
               <span>{isAr ? 'إيقاف الكل' : 'Pause All'}</span>
@@ -200,8 +149,8 @@ export const TaskList: React.FC<TaskListProps> = ({
           {hasPaused && onResumeAll && (
             <button
               onClick={onResumeAll}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono bg-[#141824] hover:bg-[#1a2030] text-[#00e599] border border-[#00e599]/30 transition-colors"
-              title={isAr ? 'استئناف كل التنزيلات المتوقفة' : 'Resume all paused downloads'}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 border border-[#1e2230] transition-colors"
+              title={isAr ? 'استئناف الكل' : 'Resume All'}
             >
               <Play className="w-3 h-3 fill-current" />
               <span>{isAr ? 'استئناف الكل' : 'Resume All'}</span>
@@ -211,44 +160,42 @@ export const TaskList: React.FC<TaskListProps> = ({
           {hasCompleted && (
             <button
               onClick={onClearCompleted}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-mono text-neutral-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-              title={isAr ? 'حذف المهام المكتملة من القائمة' : 'Clear completed tasks from list'}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-neutral-400 hover:text-red-400 hover:bg-red-400/10 border border-[#1e2230] transition-colors"
+              title={isAr ? 'مسح المكتملة' : 'Clear Done'}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>{isAr ? 'مسح المكتملة' : 'Clear Completed'}</span>
+              <Trash2 className="w-3 h-3" />
+              <span>{isAr ? 'مسح المكتملة' : 'Clear Done'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* List content */}
-      {sortedTasks.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-[#1e2230] rounded-2xl bg-[#0c0e14]/50">
-          <DownloadCloud className="w-12 h-12 text-neutral-600 mx-auto mb-3" />
-          <h4 className="text-sm font-bold text-white mb-1">
+      {/* Tasks List */}
+      {filteredTasks.length === 0 ? (
+        <div className="text-center py-20 border border-dashed border-[#1e2230] rounded-2xl bg-[#0f1118]/30">
+          <DownloadCloud className="w-10 h-10 text-neutral-600 mx-auto mb-2.5" />
+          <h4 className="text-sm font-semibold text-white mb-1">
             {searchQuery
-              ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No downloads matched your search'
-              : isAr ? 'لا توجد تنزيلات في هذه القائمة' : 'No downloads in this view'}
+              ? isAr ? 'لا توجد نتائج مطابقة' : 'No matching downloads'
+              : isAr ? 'لا توجد تنزيلات حالياً' : 'No downloads yet'}
           </h4>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto mb-4">
             {searchQuery
-              ? isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح البحث.' : 'Try a different keyword or clear the search query.'
-              : isAr
-              ? 'أضف رابط تنزيل مباشر لتسريع التنزيل عبر مسارات متزامنة بدون خوادم وسيطة.'
-              : 'Add a direct link to accelerate downloading over segmented parallel streams.'}
+              ? isAr ? 'جرّب كلمة مفتاحية أخرى' : 'Try searching for something else'
+              : isAr ? 'أضف رابط تنزيل مباشر للبدء فوراً' : 'Add a direct link to accelerate downloading'}
           </p>
           {!searchQuery && (
             <button
               onClick={onOpenAddModal}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-[#08090c] border border-[#00e599]/40 text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#090a0f] hover:bg-[#00e599]/90 transition-colors"
             >
-              {isAr ? 'إضافة رابط الآن' : 'Add Download URL'}
+              {isAr ? 'إضافة تنزيل' : 'New Download'}
             </button>
           )}
         </div>
       ) : (
-        <div className="grid gap-3">
-          {sortedTasks.map((task) => (
+        <div className="grid gap-2.5">
+          {filteredTasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}

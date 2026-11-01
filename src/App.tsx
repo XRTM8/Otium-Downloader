@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
-import { MobileView } from './components/mobile/MobileView';
-import { useViewMode } from './hooks/useViewMode';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
 import type { DownloadTask, DownloadStats } from './types/downloader';
@@ -22,20 +20,18 @@ export function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
 
-  const { isMobile, setOverrideMode } = useViewMode();
-
   useEffect(() => {
-    // Initial fetch
+    // Initial data fetch
     setTasks(downloadManager.getTasks());
     setStats(downloadManager.getStats());
 
-    // Subscribe to state updates
+    // Subscribe to state changes
     const unsubscribe = downloadManager.subscribe(() => {
       setTasks([...downloadManager.getTasks()]);
       setStats(downloadManager.getStats());
     });
 
-    // Keyboard Shortcuts (Ctrl+N: New Download, Escape: Close)
+    // Global Keyboard Shortcuts (Ctrl/Cmd + N: New Download)
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault();
@@ -43,7 +39,7 @@ export function App() {
       }
     };
 
-    // Drag and Drop link onto window
+    // Drag and Drop URLs onto window
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       setIsDraggingOver(true);
@@ -116,53 +112,32 @@ export function App() {
     downloadManager.addBatchTasks(resolvedUrls, segmentCount);
   };
 
-  // Dedicated Mobile UI for touch & phone screens (120 FPS thumb-zone UX)
-  if (isMobile) {
-    return (
-      <MobileView
-        tasks={tasks}
-        stats={stats}
-        lang={lang}
-        onToggleLang={handleToggleLang}
-        onPause={(id) => downloadManager.pauseTask(id)}
-        onResume={(id) => downloadManager.resumeTask(id)}
-        onRemove={(id) => downloadManager.removeTask(id)}
-        onRestart={(id) => downloadManager.restartTask(id)}
-        onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
-        onClearCompleted={() => downloadManager.clearCompleted()}
-        onAddDownload={handleAddTask}
-        onAddBatch={handleAddBatch}
-        onSwitchToDesktop={() => setOverrideMode('desktop')}
-      />
-    );
-  }
-
-  // Workstation Desktop Cockpit UI (High Density)
   return (
-    <div className="min-h-screen bg-[#08090c] text-white flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
+    <div className="min-h-screen bg-[#090a0f] text-white flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
         <div className="fixed inset-0 z-50 bg-[#00e599]/10 border-2 border-dashed border-[#00e599] backdrop-blur-sm flex items-center justify-center pointer-events-none animate-fade-in">
-          <div className="p-6 rounded-2xl bg-[#0c0e14] border border-[#00e599]/40 text-center shadow-2xl">
+          <div className="p-6 rounded-2xl bg-[#0f1118] border border-[#00e599]/40 text-center shadow-2xl">
             <span className="text-[#00e599] font-bold text-sm block mb-1">
-              {lang === 'ar' ? 'أفلت الرابط هنا للتحميل المباشر ⚡' : 'Drop URL here to download ⚡'}
+              {lang === 'ar' ? 'أفلت الرابط هنا للتحميل المباشر' : 'Drop URL here to download'}
             </span>
             <span className="text-neutral-400 text-xs font-mono">
-              {lang === 'ar' ? 'سيتم تقسيم الملف وبدء التنزيل فوراً' : 'Will accelerate over parallel streams'}
+              {lang === 'ar' ? 'سيتم تسريع التنزيل عبر مسارات متزامنة' : 'Will accelerate via parallel streams'}
             </span>
           </div>
         </div>
       )}
 
+      {/* Header */}
       <Header
         stats={stats}
         lang={lang}
         onToggleLang={handleToggleLang}
         onOpenAddModal={() => setIsAddModalOpen(true)}
-        onSwitchToMobile={() => setOverrideMode('mobile')}
       />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-6">
+      {/* Main Content Area */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-12">
         <TaskList
           tasks={tasks}
           lang={lang}
@@ -178,6 +153,7 @@ export function App() {
         />
       </main>
 
+      {/* Add Download Modal */}
       <AddTaskModal
         isOpen={isAddModalOpen}
         lang={lang}

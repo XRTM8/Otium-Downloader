@@ -3,17 +3,46 @@
 @import "@fontsource/tajawal";
 
 @layer base {
+  *, ::before, ::after {
+    border-color: #1e2230;
+  }
+
   body {
-    font-family: 'Tajawal', 'Plus Jakarta Sans Variable', system-ui, sans-serif;
-    background-color: #08090c;
+    font-family: 'Tajawal', 'Plus Jakarta Sans Variable', system-ui, -apple-system, sans-serif;
+    background-color: #090a0f;
     color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    overflow-x: hidden;
+  }
+
+  input, textarea {
+    user-select: auto;
+  }
+
+  /* Custom Slim Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1e2230;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2d3345;
   }
 }
 
 :root {
-  --carbon: #08090c;
-  --surface: #0f1117;
-  --border: #1e2230;
-  --emerald: #00e599;
-  --emerald-glow: rgba(0, 229, 153, 0.15);
+  --bg-carbon: #090a0f;
+  --bg-surface: #0f1118;
+  --bg-surface-elevated: #151822;
+  --border-subtle: #1e2230;
+  --border-strong: #2a3044;
+  --emerald-primary: #00e599;
 }
