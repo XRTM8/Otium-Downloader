@@ -12,7 +12,8 @@ import {
   Gauge,
   Bell,
   Volume2,
-  ListOrdered
+  ListOrdered,
+  Smartphone
 } from 'lucide-react';
 import type { DownloadStats } from '../types/downloader';
 import { formatSpeed, formatBytes } from '../core/segmentation';
@@ -24,6 +25,7 @@ interface HeaderProps {
   lang: 'ar' | 'en';
   onToggleLang: () => void;
   onOpenAddModal: () => void;
+  onSwitchToMobile?: () => void;
 }
 
 const CURRENT_VERSION = '1.2.0';
@@ -32,7 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   stats,
   lang,
   onToggleLang,
-  onOpenAddModal
+  onOpenAddModal,
+  onSwitchToMobile
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
@@ -193,6 +196,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Action Controls */}
           <div className="flex items-center gap-2.5">
+            {onSwitchToMobile && (
+              <button
+                onClick={onSwitchToMobile}
+                className="p-2 rounded-xl text-neutral-400 hover:text-white border border-[#1e2230] hover:border-[#00e599]/30 bg-[#08090c] transition-colors"
+                title={isAr ? 'التبديل إلى واجهة الهاتف (120Hz Mobile View)' : 'Switch to Mobile View'}
+              >
+                <Smartphone className="w-4 h-4 text-[#00e599]" />
+              </button>
+            )}
+
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-xl text-neutral-400 hover:text-white border border-[#1e2230] hover:border-[#00e599]/30 bg-[#08090c] transition-colors"

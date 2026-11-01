@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
+import { MobileView } from './components/mobile/MobileView';
+import { useViewMode } from './hooks/useViewMode';
 import { downloadManager } from './core/downloadManager';
+import { resolveUniversalLink } from './core/linkResolver';
 import type { DownloadTask, DownloadStats } from './types/downloader';
 
 export function App() {
@@ -18,6 +21,8 @@ export function App() {
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  const { isMobile, setOverrideMode } = useViewMode();
 
   useEffect(() => {
     // Initial fetch
@@ -53,7 +58,14 @@ export function App() {
       setIsDraggingOver(false);
       const text = e.dataTransfer?.getData('text/plain') || e.dataTransfer?.getData('text/uri-list');
       if (text && /^https?:\/\/.+/i.test(text.trim())) {
-        downloadManager.addTask(text.trim());
+        const resolved = resolveUniversalLink(text.trim());
+        downloadManager.addTask(
+          resolved.resolvedUrl,
+          undefined,
+          undefined,
+          undefined,
+          resolved.suggestedHeaders
+        );
       }
     };
 
@@ -85,13 +97,47 @@ export function App() {
     sha256?: string,
     headers?: Record<string, string>
   ) => {
-    downloadManager.addTask(url, filename, segmentCount, sha256, headers);
+    const resolved = resolveUniversalLink(url);
+    const combinedHeaders = {
+      ...(resolved.suggestedHeaders || {}),
+      ...(headers || {})
+    };
+    downloadManager.addTask(
+      resolved.resolvedUrl,
+      filename,
+      segmentCount,
+      sha256,
+      Object.keys(combinedHeaders).length > 0 ? combinedHeaders : undefined
+    );
   };
 
   const handleAddBatch = (urls: string[], segmentCount?: number) => {
-    downloadManager.addBatchTasks(urls, segmentCount);
+    const resolvedUrls = urls.map((u) => resolveUniversalLink(u).resolvedUrl);
+    downloadManager.addBatchTasks(resolvedUrls, segmentCount);
   };
 
+  // Dedicated Mobile UI for touch & phone screens (120 FPS thumb-zone UX)
+  if (isMobile) {
+    return (
+      <MobileView
+        tasks={tasks}
+        stats={stats}
+        lang={lang}
+        onToggleLang={handleToggleLang}
+        onPause={(id) => downloadManager.pauseTask(id)}
+        onResume={(id) => downloadManager.resumeTask(id)}
+        onRemove={(id) => downloadManager.removeTask(id)}
+        onRestart={(id) => downloadManager.restartTask(id)}
+        onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
+        onClearCompleted={() => downloadManager.clearCompleted()}
+        onAddDownload={handleAddTask}
+        onAddBatch={handleAddBatch}
+        onSwitchToDesktop={() => setOverrideMode('desktop')}
+      />
+    );
+  }
+
+  // Workstation Desktop Cockpit UI (High Density)
   return (
     <div className="min-h-screen bg-[#08090c] text-white flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
@@ -113,6 +159,7 @@ export function App() {
         lang={lang}
         onToggleLang={handleToggleLang}
         onOpenAddModal={() => setIsAddModalOpen(true)}
+        onSwitchToMobile={() => setOverrideMode('mobile')}
       />
 
       <main className="flex-1 max-w-6xl w-full mx-auto p-6">

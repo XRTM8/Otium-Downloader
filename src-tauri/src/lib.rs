@@ -11,6 +11,9 @@ use tokio::fs::OpenOptions;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 
+pub const DEFAULT_USER_AGENT: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 OtiumDownloader/1.2 (+https://github.com/XRTM8/Otium-Downloader)";
+
 #[derive(Default)]
 pub struct TaskManager {
     cancellations: RwLock<HashMap<String, Arc<AtomicBool>>>,
@@ -188,7 +191,8 @@ async fn probe_url(
     custom_headers: Option<HashMap<String, String>>,
 ) -> Result<UrlProbeResult, String> {
     let client = reqwest::Client::builder()
-        .user_agent("OtiumDownloader/1.2 (+https://github.com/XRTM8/Otium-Downloader)")
+        .user_agent(DEFAULT_USER_AGENT)
+        .redirect(reqwest::redirect::Policy::limited(15))
         .connect_timeout(std::time::Duration::from_secs(12))
         .build()
         .map_err(|e| e.to_string())?;
@@ -213,6 +217,7 @@ async fn probe_url(
         _ => get_req.send().await.map_err(|e| e.to_string())?,
     };
 
+    let final_url = response.url().clone();
     let headers = response.headers();
 
     let accept_ranges = headers
@@ -236,10 +241,20 @@ async fn probe_url(
         .and_then(|v| v.to_str().ok())
         .map(String::from);
 
-    let suggested_filename = headers
+    let mut suggested_filename = headers
         .get(reqwest::header::CONTENT_DISPOSITION)
         .and_then(|v| v.to_str().ok())
         .and_then(parse_content_disposition_filename);
+
+    // Fallback: If no Content-Disposition header, inspect the final redirected URL path
+    if suggested_filename.is_none() {
+        let path = final_url.path();
+        let last_seg = path.split('/').filter(|s| !s.is_empty()).last().unwrap_or("");
+        if !last_seg.is_empty() && last_seg.contains('.') {
+            let decoded = percent_decode(last_seg);
+            suggested_filename = Some(sanitize_filename(&decoded));
+        }
+    }
 
     Ok(UrlProbeResult {
         content_length,
@@ -342,7 +357,8 @@ async fn download_segment(
     }
 
     let client = reqwest::Client::builder()
-        .user_agent("OtiumDownloader/1.2 (+https://github.com/XRTM8/Otium-Downloader)")
+        .user_agent(DEFAULT_USER_AGENT)
+        .redirect(reqwest::redirect::Policy::limited(15))
         .connect_timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| e.to_string())?;
