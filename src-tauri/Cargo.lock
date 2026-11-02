@@ -2431,7 +2431,7 @@ dependencies = [
 
 [[package]]
 name = "otium_downloader"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
  "futures-util",
  "log",

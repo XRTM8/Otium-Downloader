@@ -70,11 +70,27 @@ export async function fetchReleaseInfo(
       });
       if (response.ok) {
         const data = await response.json();
+        const rawAssets = data.assets;
+        const assets: ReleaseAssets = {};
+        if (Array.isArray(rawAssets)) {
+          for (const a of rawAssets) {
+            if (a.kind === 'windows-installer' || (a.name && a.name.endsWith('-setup.exe'))) {
+              assets.windowsInstaller = { url: a.url, sha256: a.sha256 };
+            } else if (a.kind === 'windows-portable' || (a.name && a.name.includes('portable'))) {
+              assets.windowsPortable = { url: a.url, sha256: a.sha256 };
+            } else if (a.kind === 'android-apk' || (a.name && a.name.endsWith('.apk'))) {
+              assets.androidApk = { url: a.url, sha256: a.sha256 };
+            }
+          }
+        } else if (rawAssets && typeof rawAssets === 'object') {
+          Object.assign(assets, rawAssets);
+        }
+
         return {
           version: normalizeVersion(data.version || ''),
           notes: data.notes || '',
           pubDate: data.pub_date || '',
-          assets: data.assets || {}
+          assets
         };
       }
     } catch {

@@ -32,7 +32,7 @@ interface HeaderProps {
   onOpenAddModal: () => void;
 }
 
-const CURRENT_VERSION = '1.4.0';
+const CURRENT_VERSION = '1.4.1';
 
 export const Header: React.FC<HeaderProps> = ({
   stats,
@@ -131,9 +131,17 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const handleAutoUpdate = (version: string) => {
-    const installerUrl = `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
-    const filename = `Otium_Downloader_${version}_x64-setup.exe`;
-    const taskId = downloadManager.addTask(installerUrl, filename, 16);
+    const isAndroid =
+      /android/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' && (window as any).__TAURI_METADATA__?.currentPlatform === 'android');
+    const downloadUrl = isAndroid
+      ? `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_arm64.apk`
+      : `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
+    const filename = isAndroid
+      ? `Otium_Downloader_${version}_arm64.apk`
+      : `Otium_Downloader_${version}_x64-setup.exe`;
+
+    const taskId = downloadManager.addTask(downloadUrl, filename, 16);
     const unsub = downloadManager.subscribe(() => {
       const task = downloadManager.getTasks().find((t) => t.id === taskId);
       if (task && task.status === 'completed') {

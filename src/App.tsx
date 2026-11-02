@@ -26,7 +26,12 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
-  const [availableUpdate, setAvailableUpdate] = useState<ReleaseInfo | null>(null);
+  const [autoUpdateState, setAutoUpdateState] = useState<{
+    version: string;
+    percent: number;
+    status: 'downloading' | 'ready';
+    filePath?: string;
+  } | null>(null);
   const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
   const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
@@ -148,12 +153,12 @@ export function App() {
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
 
-    // Background Automatic Update Check
+    // Background Autonomous Direct Update Check
     const updateTimer = setTimeout(() => {
       fetchReleaseInfo()
         .then((info) => {
-          if (info && isNewerVersion(info.version, '1.4.0')) {
-            setAvailableUpdate(info);
+          if (info && isNewerVersion(info.version, '1.4.1')) {
+            startAutonomousDirectUpdate(info);
           }
         })
         .catch(() => {});
@@ -203,25 +208,51 @@ export function App() {
     downloadManager.addBatchTasks(resolvedUrls, segmentCount);
   };
 
-  const handlePerformAutoUpdate = () => {
-    if (!availableUpdate) return;
-    const version = availableUpdate.version;
-    const installerUrl =
-      availableUpdate.assets?.windowsInstaller?.url ||
-      `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
-    const filename = `Otium_Downloader_${version}_x64-setup.exe`;
+  const startAutonomousDirectUpdate = (info: ReleaseInfo) => {
+    const isAndroid =
+      /android/i.test(navigator.userAgent) ||
+      (typeof window !== 'undefined' && (window as any).__TAURI_METADATA__?.currentPlatform === 'android');
+    const version = info.version;
+    const downloadUrl = isAndroid
+      ? info.assets?.androidApk?.url ||
+        `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_arm64.apk`
+      : info.assets?.windowsInstaller?.url ||
+        `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
+    const filename = isAndroid
+      ? `Otium_Downloader_${version}_arm64.apk`
+      : `Otium_Downloader_${version}_x64-setup.exe`;
 
-    const taskId = downloadManager.addTask(installerUrl, filename, 16);
+    // Immediately start accelerated 16-segment background download without waiting!
+    const taskId = downloadManager.addTask(downloadUrl, filename, 16);
+    setAutoUpdateState({
+      version,
+      percent: 0,
+      status: 'downloading'
+    });
 
     const unsub = downloadManager.subscribe(() => {
       const task = downloadManager.getTasks().find((t) => t.id === taskId);
-      if (task && task.status === 'completed') {
+      if (!task) return;
+
+      const pct =
+        task.totalBytes > 0
+          ? Math.min(100, Math.round((task.downloadedBytes / task.totalBytes) * 100))
+          : 0;
+
+      if (task.status === 'completed') {
         unsub();
+        setAutoUpdateState({
+          version,
+          percent: 100,
+          status: 'ready',
+          filePath: task.savePath
+        });
+        // Immediately trigger package installer / setup wizard!
         downloadManager.openFile(task.savePath);
+      } else {
+        setAutoUpdateState((prev) => (prev ? { ...prev, percent: pct } : null));
       }
     });
-
-    setAvailableUpdate(null);
   };
 
   return (
@@ -260,10 +291,10 @@ export function App() {
         }}
       />
 
-      {/* In-App Automatic Update Banner */}
-      {availableUpdate && (
+      {/* Real-time Autonomous Direct Background Update Banner */}
+      {autoUpdateState && (
         <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 pt-3 animate-in-fade">
-          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/50 via-emerald-900/25 to-[#08090c] border border-[#00e599]/30 flex items-center justify-between gap-3 shadow-lg">
+          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/60 via-emerald-900/30 to-[#060709] border border-emerald-500/30 flex items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75" />
@@ -271,25 +302,28 @@ export function App() {
               </span>
               <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 truncate">
                 <span className="text-xs font-bold text-[#00e599] font-mono">
-                  v{availableUpdate.version} {lang === 'ar' ? 'متوفر الآن!' : 'Available Now!'}
+                  ⚡ v{autoUpdateState.version} {lang === 'ar' ? 'تحديث تلقائي فوري' : 'Direct Auto-Update'}
                 </span>
-                <span className="text-[11px] text-zinc-400 truncate">
-                  {lang === 'ar'
-                    ? 'تحديث جديد يتضمن التحكم عن بُعد من الهاتف ورادار الوسائط'
-                    : 'New release with Phone Remote Link & Media Sniffer'}
+                <span className="text-[11px] text-zinc-300 truncate">
+                  {autoUpdateState.status === 'ready'
+                    ? (lang === 'ar' ? 'اكتمل التنزيل! جاري فتح نافذة التثبيت...' : 'Downloaded! Opening installer...')
+                    : (lang === 'ar'
+                        ? `جاري التنزيل فائق السرعة في الخلفية تلقائياً (${autoUpdateState.percent}%)...`
+                        : `Downloading update in background (${autoUpdateState.percent}%)...`)}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {autoUpdateState.status === 'ready' && autoUpdateState.filePath && (
+                <button
+                  onClick={() => downloadManager.openFile(autoUpdateState.filePath!)}
+                  className="px-3 py-1.5 rounded-lg bg-[#00e599] text-[#060709] font-bold text-xs transition-transform active:scale-95 shadow-sm"
+                >
+                  {lang === 'ar' ? 'تثبيت الآن' : 'Install Now'}
+                </button>
+              )}
               <button
-                onClick={handlePerformAutoUpdate}
-                className="px-3 py-1.5 rounded-lg bg-[#00e599] hover:bg-[#00e599]/90 text-[#08090c] font-bold text-xs transition-transform active:scale-95 shadow-sm flex items-center gap-1"
-              >
-                <span>⚡</span>
-                <span>{lang === 'ar' ? 'تحديث وتثبيت تلقائي' : 'Auto-Update'}</span>
-              </button>
-              <button
-                onClick={() => setAvailableUpdate(null)}
+                onClick={() => setAutoUpdateState(null)}
                 className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.04]"
                 title={lang === 'ar' ? 'إغلاق' : 'Dismiss'}
               >
