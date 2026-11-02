@@ -4,6 +4,9 @@ dist-ssr
 *.local
 src-tauri/target
 release/
+src-tauri/gen/android/**/jniLibs/
+src-tauri/gen/android/**/build/
+src-tauri/gen/android/.gradle/
 *.key
 .DS_Store
 Thumbs.db
