@@ -14,7 +14,7 @@
 **Sovereign, High-Throughput Multi-Segment Download Accelerator**  
 *Desktop & Mobile • Zero Telemetry • Local-First Architecture*
 
-[![Release](https://img.shields.io/badge/Release-v1.3.0-00e599.svg?style=flat-square)](https://github.com/XRTM8/Otium-Downloader/releases/latest)
+[![Release](https://img.shields.io/badge/Release-v1.3.1-00e599.svg?style=flat-square)](https://github.com/XRTM8/Otium-Downloader/releases/latest)
 [![CI Status](https://img.shields.io/github/actions/workflow/status/XRTM8/Otium-Downloader/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/XRTM8/Otium-Downloader/actions)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=flat-square)](https://www.gnu.org/licenses/gpl-3.0)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2.12-purple.svg?style=flat-square)](https://v2.tauri.app)
