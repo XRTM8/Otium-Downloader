@@ -134,7 +134,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const categoryTheme = getCategoryTheme(task.category);
 
   return (
-    <div className="bg-[#0e1017] border border-white/[0.06] hover:border-white/[0.14] rounded-xl p-3.5 sm:p-4 transition-all duration-200 group hover:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)]">
+    <div className="bg-[#0d0f14]/90 hover:bg-[#0d0f14] border border-white/[0.05] hover:border-white/[0.12] rounded-2xl p-3.5 sm:p-4 transition-all duration-200 group hover:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)]">
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">

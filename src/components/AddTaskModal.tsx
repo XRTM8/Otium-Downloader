@@ -244,8 +244,11 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in-fade">
-      <div className="bg-[#0f1118] border border-white/[0.08] rounded-t-2xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative text-zinc-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in-fade">
+      <div className="bg-[#0d0f14] border border-white/[0.08] rounded-t-3xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl relative text-zinc-200 pb-safe">
+        {/* Mobile Drag Indicator */}
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden" />
+
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06]">
           <div className="flex items-center gap-2 font-semibold text-sm text-zinc-100">
@@ -551,7 +554,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
             <button
               type="submit"
               disabled={mode === 'batch' && parsedBatchUrls.length === 0}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 disabled:opacity-40 active:scale-[0.98] transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold bg-[#00e599] text-[#060709] hover:bg-[#00e599]/90 disabled:opacity-40 active:scale-[0.98] transition-all shadow-[0_0_16px_rgba(0,229,153,0.18)]"
             >
               <ArrowDownToLine className="w-3.5 h-3.5" />
               <span>

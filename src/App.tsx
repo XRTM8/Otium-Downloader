@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
@@ -225,7 +225,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090c] text-zinc-100 flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
+    <div className="min-h-screen bg-[#060709] text-zinc-100 flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
       {isDraggingOver && (
         <div className="fixed inset-0 z-50 bg-[#00e599]/10 border-2 border-dashed border-[#00e599] backdrop-blur-md flex items-center justify-center pointer-events-none animate-in-fade">
@@ -301,7 +301,7 @@ export function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-12">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-28 sm:pb-12">
         <TaskList
           tasks={tasks}
           lang={lang}
@@ -320,6 +320,19 @@ export function App() {
           onResumeAll={() => downloadManager.resumeAll()}
         />
       </main>
+
+      {/* Mobile Floating Action Button (FAB) */}
+      <button
+        onClick={() => {
+          setInitialAddUrl(undefined);
+          setInitialBatchText(undefined);
+          setIsAddModalOpen(true);
+        }}
+        className="sm:hidden fixed bottom-6 end-5 z-40 w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-500 to-[#00e599] text-[#060709] flex items-center justify-center shadow-[0_8px_28px_rgba(0,229,153,0.35)] active:scale-90 transition-transform"
+        aria-label={lang === 'ar' ? 'تنزيل جديد' : 'New Download'}
+      >
+        <Plus className="w-6 h-6 stroke-[2.5]" />
+      </button>
 
       {/* Add Download Modal */}
       <AddTaskModal

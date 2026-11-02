@@ -146,16 +146,16 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-[#08090c]/85 backdrop-blur-xl border-b border-white/[0.06] px-4 sm:px-6 py-2.5 transition-all">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-[#060709]/90 backdrop-blur-xl border-b border-white/[0.05] px-3.5 sm:px-6 pt-safe pb-2.5 transition-all">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           {/* Brand Identity */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_12px_rgba(0,229,153,0.15)]">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-[#00e599] shadow-[0_0_16px_rgba(0,229,153,0.15)]">
               <OtiumLogo className="w-4 h-4" glow />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="font-semibold text-sm text-zinc-100 tracking-tight">Otium</span>
-              <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/[0.06]">
+              <span className="font-bold text-sm text-zinc-100 tracking-tight">Otium</span>
+              <span className="hidden sm:inline-block text-[10px] font-mono text-zinc-400 px-1.5 py-0.5 rounded-md bg-white/[0.03] border border-white/[0.05]">
                 v{CURRENT_VERSION}
               </span>
             </div>
@@ -164,32 +164,27 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Live Throughput Pill */}
           <div className="flex items-center gap-2">
             {stats.currentTotalSpeed > 0 ? (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-mono text-emerald-400 animate-in-fade shadow-[0_0_12px_rgba(0,229,153,0.12)]">
+              <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs font-mono text-emerald-400 animate-in-fade shadow-[0_0_12px_rgba(0,229,153,0.12)]">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e599]"></span>
                 </span>
-                <span className="font-semibold tabular-nums tracking-tight">{formatSpeed(stats.currentTotalSpeed)}</span>
-                <ThroughputSparkline history={speedHistory || []} className="w-14 h-4 hidden sm:block" />
-                <span className="text-emerald-500/40">•</span>
-                <span className="text-emerald-300/80 text-[11px] font-normal">{stats.activeCount} {isAr ? 'نشط' : 'active'}</span>
+                <span className="font-semibold tabular-nums tracking-tight text-xs">{formatSpeed(stats.currentTotalSpeed)}</span>
+                <ThroughputSparkline history={speedHistory || []} className="w-12 h-3.5 hidden md:block" />
+                <span className="text-emerald-500/40 hidden sm:inline">•</span>
+                <span className="text-emerald-300/80 text-[11px] font-normal hidden sm:inline">{stats.activeCount} {isAr ? 'نشط' : 'active'}</span>
               </div>
             ) : stats.completedCount > 0 ? (
-              <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.06] text-xs font-mono text-zinc-400">
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.02] border border-white/[0.05] text-xs font-mono text-zinc-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
                 <span className="text-zinc-500">{isAr ? 'المحمّل:' : 'Total:'}</span>
                 <span className="text-zinc-300 font-medium tabular-nums">{formatBytes(stats.totalBytesDownloaded)}</span>
               </div>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
-                <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
-                <span>{isAr ? 'جاهز للتسريع' : 'Standby'}</span>
-              </div>
-            )}
+            ) : null}
           </div>
 
           {/* Action Group */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
             <button
               onClick={onToggleLang}
               className="px-2 py-1.5 rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
@@ -204,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({
             {onOpenShortcutsModal && (
               <button
                 onClick={onOpenShortcutsModal}
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
+                className="hidden sm:inline-flex p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
                 title={isAr ? 'اختصارات لوحة المفاتيح (?)' : 'Keyboard Shortcuts (?)'}
               >
                 <HelpCircle className="w-4 h-4" />
@@ -225,14 +220,14 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => setSettingsOpen(true)}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06]"
-              title={isAr ? 'الإعدادات (⌘,)' : 'Settings (⌘,)'}
+              title={isAr ? 'الإعدادات' : 'Settings'}
             >
               <Settings2 className="w-4 h-4" />
             </button>
 
             <button
               onClick={onOpenAddModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all shadow-sm"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#07080a] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all shadow-[0_0_12px_rgba(0,229,153,0.15)]"
             >
               <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>{isAr ? 'تنزيل جديد' : 'New'}</span>
@@ -246,8 +241,11 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Settings Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in-fade">
-          <div className="bg-[#0f1117] border border-white/[0.08] rounded-2xl w-full max-w-md p-5 sm:p-6 shadow-2xl relative text-zinc-200">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in-fade">
+          <div className="bg-[#0d0f14] border border-white/[0.08] rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl relative text-zinc-200 pb-safe">
+            {/* Mobile Drag Indicator */}
+            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden" />
+
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06]">
               <div className="flex items-center gap-2 text-sm font-semibold text-zinc-100">

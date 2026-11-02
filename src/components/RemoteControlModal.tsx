@@ -130,8 +130,11 @@ export const RemoteControlModal: React.FC<RemoteControlModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in-fade">
-      <div className="bg-[#0f1118] border border-white/[0.08] rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative text-zinc-200 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in-fade">
+      <div className="bg-[#0d0f14] border border-white/[0.08] rounded-t-3xl sm:rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl relative text-zinc-200 max-h-[90vh] flex flex-col pb-safe">
+        {/* Mobile Drag Indicator */}
+        <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mb-3.5 sm:hidden" />
+
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.06] shrink-0">
           <div className="flex items-center gap-2">

@@ -5,11 +5,11 @@ import {
   Pause,
   Play,
   X,
-  Filter,
   Upload,
   Download,
   Check,
-  CheckSquare
+  CheckSquare,
+  Plus
 } from 'lucide-react';
 import { OtiumLogo } from './OtiumLogo';
 import type { DownloadTask, TaskCategory } from '../types/downloader';
@@ -139,74 +139,41 @@ export const TaskList: React.FC<TaskListProps> = ({
     setIsSelectionMode(false);
   };
 
+  const categories: { key: TaskCategory; ar: string; en: string }[] = [
+    { key: 'programs', ar: 'برامج', en: 'Apps' },
+    { key: 'media', ar: 'وسائط', en: 'Media' },
+    { key: 'documents', ar: 'مستندات', en: 'Docs' },
+    { key: 'archives', ar: 'أرشيف', en: 'Archives' },
+  ];
+
   return (
-    <div className="space-y-3.5">
-      {/* Filter and Actions Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
-        {/* Status Tabs, Categories & Search */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Segmented Control Tabs */}
-          <div className="flex items-center gap-1 bg-[#0f1118] p-1 rounded-lg border border-white/[0.06] text-xs font-mono">
-            {(['all', 'active', 'completed'] as const).map((tab) => {
-              const label = tab === 'all' ? (isAr ? 'الكل' : 'All') : tab === 'active' ? (isAr ? 'النشطة' : 'Active') : (isAr ? 'المكتملة' : 'Done');
-              const count = getStatusCount(tab);
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setStatusFilter(tab)}
-                  className={`px-3 py-1 rounded-md transition-all text-xs ${
-                    statusFilter === tab
-                      ? 'bg-white/[0.08] text-zinc-100 font-semibold shadow-sm'
-                      : 'text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {label} <span className="opacity-60 text-[10px]">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Category Selector */}
-          <div className="flex items-center gap-1 bg-[#0f1118] px-2 py-1 rounded-lg border border-white/[0.06] text-xs font-mono text-zinc-400">
-            <Filter className="w-3 h-3 text-zinc-500" />
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value as any)}
-              className="bg-transparent text-zinc-300 focus:outline-none cursor-pointer text-xs"
+    <div className="space-y-3">
+      {/* Search & Actions Bar */}
+      <div className="flex items-center gap-2">
+        {/* Unified Search Input */}
+        <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 rtl:right-3 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            id="global-search-input"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={isAr ? 'بحث في التنزيلات...' : 'Search downloads...'}
+            className="w-full bg-[#0d0f14]/80 border border-white/[0.06] rounded-xl pl-8 rtl:pr-8 rtl:pl-8 pr-8 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/20 transition-all font-mono shadow-inner"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 rtl:left-2.5 rtl:right-auto top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white p-0.5 rounded transition-colors"
             >
-              <option value="all" className="bg-[#0f1118]">{isAr ? 'كل الفئات' : 'All Types'}</option>
-              <option value="programs" className="bg-[#0f1118]">{isAr ? 'برامج' : 'Programs'}</option>
-              <option value="media" className="bg-[#0f1118]">{isAr ? 'وسائط' : 'Media'}</option>
-              <option value="documents" className="bg-[#0f1118]">{isAr ? 'مستندات' : 'Docs'}</option>
-              <option value="archives" className="bg-[#0f1118]">{isAr ? 'أرشيف' : 'Archives'}</option>
-            </select>
-          </div>
-
-          {/* Search Box */}
-          <div className="relative flex-1 sm:w-48">
-            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              id="global-search-input"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={isAr ? 'بحث سريع... (/)' : 'Search... (/)'}
-              className="w-full bg-[#0f1118] border border-white/[0.06] rounded-lg pl-8 rtl:pr-8 rtl:pl-7 pr-7 py-1 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-[#00e599]/40 transition-colors font-mono"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 rtl:left-2 rtl:right-auto top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
-        {/* Batch Actions Group */}
-        <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs font-mono">
-          {/* File Import Input */}
+        {/* Discreet Toolbar Actions */}
+        <div className="flex items-center gap-1 shrink-0 font-mono text-xs">
+          {/* Hidden file input for import */}
           <input
             type="file"
             ref={fileInputRef}
@@ -217,11 +184,11 @@ export const TaskList: React.FC<TaskListProps> = ({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
-            title={isAr ? 'استيراد روابط من ملف .txt أو .json' : 'Import URLs from file'}
+            className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+            title={isAr ? 'استيراد روابط' : 'Import URLs'}
           >
-            <Upload className="w-3 h-3" />
-            <span>{isAr ? 'استيراد' : 'Import'}</span>
+            <Upload className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-xs">{isAr ? 'استيراد' : 'Import'}</span>
           </button>
 
           {tasks.length > 0 && (
@@ -231,69 +198,117 @@ export const TaskList: React.FC<TaskListProps> = ({
                   setIsSelectionMode(!isSelectionMode);
                   if (isSelectionMode) setSelectedIds(new Set());
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
+                className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border transition-colors flex items-center gap-1.5 ${
                   isSelectionMode
-                    ? 'bg-[#00e599]/10 border-[#00e599]/40 text-[#00e599]'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border-white/[0.06]'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-[#00e599]'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border-white/[0.05]'
                 }`}
-                title={isAr ? 'وضع التحديد المتعدد' : 'Multi-select mode'}
+                title={isAr ? 'وضع التحديد' : 'Select'}
               >
-                <CheckSquare className="w-3 h-3" />
-                <span>{isAr ? 'تحديد' : 'Select'}</span>
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs">{isAr ? 'تحديد' : 'Select'}</span>
               </button>
 
               <button
                 onClick={handleExportUrls}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
-                title={isAr ? 'نسخ روابط التنزيل الحالية للحافظة' : 'Copy download URLs to clipboard'}
+                className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+                title={isAr ? 'تصدير الروابط' : 'Export URLs'}
               >
-                {copiedExport ? <Check className="w-3 h-3 text-[#00e599]" /> : <Download className="w-3 h-3" />}
-                <span>{copiedExport ? (isAr ? 'تم النسخ ✓' : 'Copied ✓') : (isAr ? 'تصدير' : 'Export')}</span>
+                {copiedExport ? <Check className="w-3.5 h-3.5 text-[#00e599]" /> : <Download className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline text-xs">{copiedExport ? (isAr ? 'تم ✓' : 'Done') : (isAr ? 'تصدير' : 'Export')}</span>
               </button>
             </>
           )}
+
           {hasDownloading && onPauseAll && (
             <button
               onClick={onPauseAll}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-300 hover:text-white hover:bg-white/[0.04] border border-white/[0.06] transition-colors"
-              title={isAr ? 'إيقاف الكل مؤقتاً' : 'Pause All'}
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+              title={isAr ? 'إيقاف الكل' : 'Pause All'}
             >
-              <Pause className="w-3 h-3" />
-              <span>{isAr ? 'إيقاف الكل' : 'Pause All'}</span>
+              <Pause className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-xs">{isAr ? 'إيقاف الكل' : 'Pause All'}</span>
             </button>
           )}
 
           {hasPaused && onResumeAll && (
             <button
               onClick={onResumeAll}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 border border-white/[0.06] transition-colors"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-[#00e599] hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors flex items-center gap-1.5"
               title={isAr ? 'استئناف الكل' : 'Resume All'}
             >
-              <Play className="w-3 h-3 fill-current" />
-              <span>{isAr ? 'استئناف الكل' : 'Resume All'}</span>
+              <Play className="w-3.5 h-3.5 fill-current" />
+              <span className="hidden sm:inline text-xs">{isAr ? 'استئناف الكل' : 'Resume'}</span>
             </button>
           )}
 
           {hasCompleted && (
             <button
               onClick={onClearCompleted}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.06] transition-colors"
-              title={isAr ? 'مسح التنزيلات المكتملة' : 'Clear Done'}
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.05] transition-colors flex items-center gap-1.5"
+              title={isAr ? 'مسح المكتملة' : 'Clear Done'}
             >
-              <Trash2 className="w-3 h-3" />
-              <span>{isAr ? 'مسح المكتملة' : 'Clear Done'}</span>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline text-xs">{isAr ? 'مسح' : 'Clear'}</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* Horizontal Filter Chips Strip */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        {/* Main Status Chips */}
+        {(['all', 'active', 'completed'] as const).map((tab) => {
+          const label = tab === 'all' ? (isAr ? 'الكل' : 'All') : tab === 'active' ? (isAr ? 'النشطة' : 'Active') : (isAr ? 'المكتملة' : 'Done');
+          const count = getStatusCount(tab);
+          const isActive = statusFilter === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setStatusFilter(tab)}
+              className={`px-3 py-1 rounded-lg text-xs font-mono transition-all shrink-0 flex items-center gap-1.5 border ${
+                isActive
+                  ? 'bg-zinc-100 text-[#07080a] font-semibold border-zinc-200 shadow-sm'
+                  : 'bg-white/[0.02] hover:bg-white/[0.05] text-zinc-400 hover:text-zinc-200 border-white/[0.05]'
+              }`}
+            >
+              <span>{label}</span>
+              <span className={`text-[10px] font-normal ${isActive ? 'text-zinc-600' : 'text-zinc-500'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Divider */}
+        <div className="w-px h-3.5 bg-white/[0.08] mx-1 shrink-0" />
+
+        {/* Category Filter Chips */}
+        {categories.map((cat) => {
+          const isSelected = categoryFilter === cat.key;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setCategoryFilter(isSelected ? 'all' : cat.key)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all shrink-0 border ${
+                isSelected
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-[#00e599] font-medium shadow-[0_0_10px_rgba(0,229,153,0.1)]'
+                  : 'bg-white/[0.02] hover:bg-white/[0.05] text-zinc-400 hover:text-zinc-200 border-white/[0.05]'
+              }`}
+            >
+              {isAr ? cat.ar : cat.en}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Selection Mode Bar */}
       {isSelectionMode && filteredTasks.length > 0 && (
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0f1118] border border-white/[0.08] text-xs font-mono animate-in-fade shadow-lg">
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#0d0f14] border border-white/[0.08] text-xs font-mono animate-in-fade shadow-lg">
           <div className="flex items-center gap-2">
             <button
               onClick={handleSelectAll}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-zinc-300 hover:text-white bg-white/[0.04] transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-zinc-300 hover:text-white bg-white/[0.04] transition-colors"
             >
               <span>{selectedIds.size === filteredTasks.length ? (isAr ? 'إلغاء تحديد الكل' : 'Deselect All') : (isAr ? 'تحديد الكل' : 'Select All')}</span>
             </button>
@@ -307,19 +322,19 @@ export const TaskList: React.FC<TaskListProps> = ({
               <>
                 <button
                   onClick={handleBatchPauseSelected}
-                  className="px-2 py-1 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-colors"
+                  className="px-2.5 py-1 rounded-lg text-amber-400 hover:bg-amber-400/10 transition-colors"
                 >
                   {isAr ? 'إيقاف' : 'Pause'}
                 </button>
                 <button
                   onClick={handleBatchResumeSelected}
-                  className="px-2 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
+                  className="px-2.5 py-1 rounded-lg text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
                 >
                   {isAr ? 'استئناف' : 'Resume'}
                 </button>
                 <button
                   onClick={handleBatchRemoveSelected}
-                  className="px-2 py-1 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  className="px-2.5 py-1 rounded-lg text-rose-400 hover:bg-rose-500/10 transition-colors"
                 >
                   {isAr ? 'حذف' : 'Delete'}
                 </button>
@@ -340,26 +355,32 @@ export const TaskList: React.FC<TaskListProps> = ({
 
       {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-white/[0.06] rounded-2xl bg-[#0f1118]/25 animate-in-fade relative overflow-hidden">
-          <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center mx-auto mb-3 shadow-inner">
-            <OtiumLogo className="w-6 h-6 text-zinc-500" />
+        <div className="text-center py-16 px-4 border border-white/[0.04] rounded-2xl bg-[#0d0f14]/40 backdrop-blur-sm animate-in-fade relative overflow-hidden">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3.5 text-[#00e599] shadow-[0_0_20px_rgba(0,229,153,0.12)]">
+            <OtiumLogo className="w-6 h-6" glow />
           </div>
           <h4 className="text-sm font-semibold text-zinc-200 mb-1">
             {searchQuery
               ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No matching downloads'
               : isAr ? 'لا توجد تنزيلات حالياً' : 'No downloads in this view'}
           </h4>
-          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
-            {searchQuery
-              ? isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح شريط البحث' : 'Try searching for something else or clear the query'
-              : isAr ? 'أضف رابط تنزيل مباشر أو اضغط ⌘N للبدء' : 'Add a download link or press ⌘N to start'}
+          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4 font-normal">
+            {searchQuery ? (
+              isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح شريط البحث' : 'Try searching for something else or clear query'
+            ) : (
+              <>
+                <span className="sm:hidden">{isAr ? 'اضغط على زر + في الأسفل أو انسخ رابطاً للبدء' : 'Tap + below or copy a link to start'}</span>
+                <span className="hidden sm:inline">{isAr ? 'أفلت رابطاً هنا للتنزيل، أو اضغط ⌘N للبدء' : 'Drop a URL here or press ⌘N to start'}</span>
+              </>
+            )}
           </p>
           {!searchQuery && (
             <button
               onClick={onOpenAddModal}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#00e599] text-[#08090c] hover:bg-[#00e599]/90 active:scale-[0.98] transition-all shadow-[0_0_12px_rgba(0,229,153,0.15)]"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 border border-emerald-500/25 text-[#00e599] hover:bg-emerald-500/25 active:scale-[0.98] transition-all shadow-[0_0_12px_rgba(0,229,153,0.1)]"
             >
-              {isAr ? 'إضافة تنزيل' : 'New Download'}
+              <Plus className="w-3.5 h-3.5" />
+              <span>{isAr ? 'إضافة تنزيل' : 'New Download'}</span>
             </button>
           )}
         </div>
