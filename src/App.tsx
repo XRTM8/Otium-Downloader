@@ -177,7 +177,7 @@ export function App() {
     const updateTimer = setTimeout(() => {
       fetchReleaseInfo()
         .then((info) => {
-          if (info && isNewerVersion(info.version, '1.4.1')) {
+          if (info && isNewerVersion(info.version, '1.4.2')) {
             startAutonomousDirectUpdate(info);
           }
         })
