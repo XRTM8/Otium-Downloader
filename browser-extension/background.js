@@ -92,6 +92,9 @@ async function checkOtiumOnline() {
     const timer = setTimeout(() => ctrl.abort(), 750);
     const res = await fetch(`${OTIUM_BRIDGE_URL}/ping`, {
       method: 'GET',
+      headers: {
+        'X-Otium-Client': 'browser-extension'
+      },
       signal: ctrl.signal
     });
     clearTimeout(timer);
@@ -120,7 +123,8 @@ async function sendToOtium(url, filename, referer) {
     const res = await fetch(`${OTIUM_BRIDGE_URL}/add`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Otium-Client': 'browser-extension'
       },
       body: JSON.stringify(payload)
     });

@@ -3,6 +3,8 @@
  * Implements BEP 0003 (Bencode & .torrent) and BEP 0009 (Magnet URI with BTIH)
  */
 
+import { sanitizeFilename } from './segmentation';
+
 export interface TorrentFileItem {
   path: string;
   length: number;
@@ -118,6 +120,8 @@ export function parseMagnetUri(uri: string): TorrentMetadata | null {
  */
 export class BencodeDecoder {
   private pos = 0;
+  private depth = 0;
+  private readonly maxDepth = 64;
   private readonly data: Uint8Array;
   public rawInfoSlice: Uint8Array | null = null;
 
@@ -127,6 +131,7 @@ export class BencodeDecoder {
 
   public decode(): any {
     this.pos = 0;
+    this.depth = 0;
     this.rawInfoSlice = null;
     return this.parseNext();
   }
@@ -134,6 +139,10 @@ export class BencodeDecoder {
   private parseNext(): any {
     if (this.pos >= this.data.length) {
       throw new Error('Unexpected end of Bencode stream');
+    }
+
+    if (this.depth > this.maxDepth) {
+      throw new Error('Bencode recursion depth limit exceeded (malformed or nested payload)');
     }
 
     const byte = this.data[this.pos];
@@ -199,41 +208,54 @@ export class BencodeDecoder {
 
   private parseList(): any[] {
     this.pos++; // skip 'l'
+    this.depth++;
     const list: any[] = [];
-    while (this.pos < this.data.length && this.data[this.pos] !== 0x65) {
-      list.push(this.parseNext());
+    try {
+      while (this.pos < this.data.length && this.data[this.pos] !== 0x65) {
+        list.push(this.parseNext());
+      }
+      if (this.pos >= this.data.length) {
+        throw new Error('Unterminated bencode list');
+      }
+      this.pos++; // skip 'e'
+      return list;
+    } finally {
+      this.depth--;
     }
-    if (this.pos >= this.data.length) {
-      throw new Error('Unterminated bencode list');
-    }
-    this.pos++; // skip 'e'
-    return list;
   }
 
   private parseDictionary(): Record<string, any> {
     this.pos++; // skip 'd'
-    const dict: Record<string, any> = {};
+    this.depth++;
+    const dict: Record<string, any> = Object.create(null);
 
-    while (this.pos < this.data.length && this.data[this.pos] !== 0x65) {
-      const keyBytes = this.parseByteString();
-      const key = new TextDecoder('utf-8').decode(keyBytes);
+    try {
+      while (this.pos < this.data.length && this.data[this.pos] !== 0x65) {
+        const keyBytes = this.parseByteString();
+        const key = new TextDecoder('utf-8').decode(keyBytes);
 
-      const valStartPos = this.pos;
-      const val = this.parseNext();
-      const valEndPos = this.pos;
+        const valStartPos = this.pos;
+        const val = this.parseNext();
+        const valEndPos = this.pos;
 
-      if (key === 'info') {
-        this.rawInfoSlice = this.data.subarray(valStartPos, valEndPos);
+        if (key === 'info') {
+          this.rawInfoSlice = this.data.subarray(valStartPos, valEndPos);
+        }
+
+        // Prevent prototype pollution
+        if (key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
+          dict[key] = val;
+        }
       }
 
-      dict[key] = val;
+      if (this.pos >= this.data.length) {
+        throw new Error('Unterminated bencode dictionary');
+      }
+      this.pos++; // skip 'e'
+      return dict;
+    } finally {
+      this.depth--;
     }
-
-    if (this.pos >= this.data.length) {
-      throw new Error('Unterminated bencode dictionary');
-    }
-    this.pos++; // skip 'e'
-    return dict;
   }
 
   private indexOfByte(target: number, from: number): number {
@@ -321,15 +343,27 @@ export async function parseTorrentFile(buffer: Uint8Array | ArrayBuffer): Promis
       const len = typeof fileObj.length === 'number' ? fileObj.length : 0;
       totalLength += len;
 
-      let subPath = '';
+      let rawSegments: string[] = [];
       if (Array.isArray(fileObj['path.utf-8'])) {
-        subPath = fileObj['path.utf-8'].map(decodeUtf8).join('/');
+        rawSegments = fileObj['path.utf-8'].map(decodeUtf8);
       } else if (Array.isArray(fileObj.path)) {
-        subPath = fileObj.path.map(decodeUtf8).join('/');
+        rawSegments = fileObj.path.map(decodeUtf8);
       }
 
+      // Sanitize path segments to prevent directory traversal / Zip-Slip
+      const safeSegments = rawSegments
+        .filter((raw) => {
+          const t = raw.trim();
+          return t && t !== '.' && t !== '..' && !t.includes('/') && !t.includes('\\');
+        })
+        .map((seg) => sanitizeFilename(seg))
+        .filter((seg) => seg && seg !== '_' && seg !== '.' && seg !== '..');
+
+      const safeName = sanitizeFilename(name);
+      const subPath = safeSegments.join('/');
+
       files.push({
-        path: subPath ? `${name}/${subPath}` : name,
+        path: subPath ? `${safeName}/${subPath}` : safeName,
         length: len
       });
     }

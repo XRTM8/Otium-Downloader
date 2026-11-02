@@ -454,8 +454,15 @@ async fn download_segment(
             return Err(format!("Server returned HTTP {}", status));
         }
 
-        if actual_start > 0 && status == reqwest::StatusCode::OK {
-            return Err("Server does not support byte ranges (returned HTTP 200 instead of 206)".to_string());
+        if status == reqwest::StatusCode::OK {
+            if actual_start > 0 {
+                return Err("Server does not support byte ranges (returned HTTP 200 instead of 206)".to_string());
+            }
+            if let Some(cl) = response.content_length() {
+                if cl > total_segment_bytes {
+                    return Err("Server does not support byte ranges (returned full body 200 for sub-range)".to_string());
+                }
+            }
         }
 
         if let Err(e) = file.seek(SeekFrom::Start(actual_start)).await {
@@ -484,16 +491,25 @@ async fn download_segment(
 
             match chunk_result {
                 Ok(chunk) => {
-                    if let Err(e) = file.write_all(&chunk).await {
-                        return Err(format!("Disk write error: {}", e));
+                    let remaining = total_segment_bytes.saturating_sub(downloaded);
+                    if remaining == 0 {
+                        break;
                     }
+
                     let chunk_len = chunk.len() as u64;
-                    downloaded += chunk_len;
+                    let bytes_to_write = (chunk_len.min(remaining)) as usize;
+
+                    if bytes_to_write > 0 {
+                        if let Err(e) = file.write_all(&chunk[..bytes_to_write]).await {
+                            return Err(format!("Disk write error: {}", e));
+                        }
+                        downloaded += bytes_to_write as u64;
+                    }
 
                     // Speed limit pacing if configured
                     let limit = state.get_speed_limit();
                     if limit > 0 {
-                        let delay_ms = (chunk_len * 1000) / limit;
+                        let delay_ms = ((bytes_to_write as u64) * 1000) / limit;
                         if delay_ms > 0 {
                             tokio::time::sleep(std::time::Duration::from_millis(delay_ms.min(300))).await;
                         }
@@ -516,6 +532,10 @@ async fn download_segment(
                                 is_finished: false,
                             },
                         );
+                    }
+
+                    if downloaded >= total_segment_bytes {
+                        break;
                     }
                 }
                 Err(e) => {
@@ -612,17 +632,59 @@ async fn open_file_item(app: AppHandle, file_path: String) -> Result<(), String>
 }
 
 #[tauri::command]
-async fn delete_file_item(file_path: String) -> Result<(), String> {
+async fn delete_file_item(app: AppHandle, file_path: String) -> Result<(), String> {
     let clean = file_path.trim();
     if clean.is_empty() {
         return Ok(());
     }
-    let path = Path::new(clean);
-    if path.exists() && path.is_file() {
-        tokio::fs::remove_file(path)
-            .await
-            .map_err(|e| format!("Failed to delete file from disk: {}", e))?;
+    let target_path = Path::new(clean);
+    if !target_path.exists() {
+        return Ok(());
     }
+    if !target_path.is_file() {
+        return Err("Security violation: destination must be a file, not a directory".to_string());
+    }
+
+    let canonical_target = target_path.canonicalize().map_err(|e| e.to_string())?;
+
+    // Block deletion of critical system root and directories
+    let target_str = canonical_target.to_string_lossy().to_ascii_lowercase();
+    let forbidden_prefixes = [
+        "c:\\windows",
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "/etc",
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/lib",
+        "/system",
+        "/library",
+    ];
+    for forbidden in forbidden_prefixes {
+        if target_str.starts_with(forbidden) {
+            return Err("Security violation: cannot delete system protected files".to_string());
+        }
+    }
+
+    // Must be in download dir or user home directory
+    let is_in_download = app.path().download_dir().ok()
+        .and_then(|d| d.canonicalize().ok())
+        .map(|d| canonical_target.starts_with(&d))
+        .unwrap_or(false);
+
+    let is_in_home = app.path().home_dir().ok()
+        .and_then(|h| h.canonicalize().ok())
+        .map(|h| canonical_target.starts_with(&h))
+        .unwrap_or(false);
+
+    if !is_in_download && !is_in_home {
+        return Err("Security violation: target file is outside user allowed directories".to_string());
+    }
+
+    tokio::fs::remove_file(canonical_target)
+        .await
+        .map_err(|e| format!("Failed to delete file from disk: {}", e))?;
     Ok(())
 }
 
@@ -665,26 +727,78 @@ fn start_browser_bridge(app_handle: AppHandle) {
 
                 let request = String::from_utf8_lossy(&buf[..n]);
 
+                // Extract Origin and Client headers
+                let origin_header = request
+                    .lines()
+                    .find(|line| line.to_ascii_lowercase().starts_with("origin:"))
+                    .map(|line| line[7..].trim().to_string());
+
+                let client_header = request
+                    .lines()
+                    .find(|line| line.to_ascii_lowercase().starts_with("x-otium-client:"))
+                    .map(|line| line[16..].trim().to_string());
+
+                // Reject all web origins (Anti-CSRF / Drive-by download prevention)
+                if let Some(ref orig) = origin_header {
+                    let lower = orig.to_ascii_lowercase();
+                    if lower.starts_with("http://") || lower.starts_with("https://") {
+                        let body = r#"{"error":"forbidden_origin","message":"Web origins are blocked from communicating with Otium loopback bridge"}"#;
+                        let response = format!(
+                            "HTTP/1.1 403 Forbidden\r\n\
+                            Content-Type: application/json\r\n\
+                            Content-Length: {}\r\n\r\n{}",
+                            body.len(),
+                            body
+                        );
+                        let _ = socket.write_all(response.as_bytes()).await;
+                        return;
+                    }
+                }
+
                 // Handle CORS preflight
                 if request.starts_with("OPTIONS") {
-                    let response = "HTTP/1.1 204 No Content\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
+                    let allowed_origin = match origin_header.as_deref() {
+                        Some(orig) if orig.starts_with("chrome-extension://")
+                            || orig.starts_with("moz-extension://")
+                            || orig.starts_with("safari-web-extension://") => orig,
+                        _ => {
+                            let response = "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n";
+                            let _ = socket.write_all(response.as_bytes()).await;
+                            return;
+                        }
+                    };
+
+                    let response = format!(
+                        "HTTP/1.1 204 No Content\r\n\
+                        Access-Control-Allow-Origin: {}\r\n\
                         Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
-                        Access-Control-Allow-Headers: Content-Type, Authorization\r\n\
+                        Access-Control-Allow-Headers: Content-Type, Authorization, X-Otium-Client\r\n\
                         Access-Control-Max-Age: 86400\r\n\
-                        Content-Length: 0\r\n\r\n";
+                        Content-Length: 0\r\n\r\n",
+                        allowed_origin
+                    );
                     let _ = socket.write_all(response.as_bytes()).await;
                     return;
                 }
+
+                // Echo origin if it is an extension, or omit if none
+                let cors_origin_str = match origin_header.as_deref() {
+                    Some(orig) if orig.starts_with("chrome-extension://")
+                        || orig.starts_with("moz-extension://")
+                        || orig.starts_with("safari-web-extension://") => {
+                        format!("Access-Control-Allow-Origin: {}\r\n", orig)
+                    }
+                    _ => String::new(),
+                };
 
                 // Handle GET /ping or GET /status
                 if request.starts_with("GET /ping") || request.starts_with("GET /status") {
                     let body = r#"{"status":"ok","app":"Otium Downloader","version":"1.3.0"}"#;
                     let response = format!(
                         "HTTP/1.1 200 OK\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
+                        {}Content-Type: application/json\r\n\
                         Content-Length: {}\r\n\r\n{}",
+                        cors_origin_str,
                         body.len(),
                         body
                     );
@@ -694,16 +808,61 @@ fn start_browser_bridge(app_handle: AppHandle) {
 
                 // Handle POST /add
                 if request.starts_with("POST /add") {
+                    let is_extension_origin = origin_header.as_deref().map(|o| {
+                        o.starts_with("chrome-extension://")
+                            || o.starts_with("moz-extension://")
+                            || o.starts_with("safari-web-extension://")
+                    }).unwrap_or(false);
+
+                    let is_extension_client = client_header.as_deref() == Some("browser-extension");
+
+                    if !is_extension_origin && !is_extension_client {
+                        let body = r#"{"error":"unauthorized_client","message":"Missing valid X-Otium-Client header or extension origin"}"#;
+                        let response = format!(
+                            "HTTP/1.1 401 Unauthorized\r\n\
+                            {}Content-Type: application/json\r\n\
+                            Content-Length: {}\r\n\r\n{}",
+                            cors_origin_str,
+                            body.len(),
+                            body
+                        );
+                        let _ = socket.write_all(response.as_bytes()).await;
+                        return;
+                    }
+
                     if let Some(body_start) = request.find("\r\n\r\n") {
                         let json_part = &request[body_start + 4..];
-                        if let Ok(payload) = serde_json::from_str::<BrowserDownloadPayload>(json_part.trim()) {
+                        if let Ok(mut payload) = serde_json::from_str::<BrowserDownloadPayload>(json_part.trim()) {
+                            let url_trim = payload.url.trim();
+                            // Validate protocol to prevent file:// or internal protocol abuse
+                            if !url_trim.starts_with("http://")
+                                && !url_trim.starts_with("https://")
+                                && !url_trim.starts_with("magnet:?")
+                            {
+                                let body = r#"{"error":"invalid_protocol","message":"Only http, https, and magnet URIs are permitted"}"#;
+                                let response = format!(
+                                    "HTTP/1.1 400 Bad Request\r\n\
+                                    {}Content-Type: application/json\r\n\
+                                    Content-Length: {}\r\n\r\n{}",
+                                    cors_origin_str,
+                                    body.len(),
+                                    body
+                                );
+                                let _ = socket.write_all(response.as_bytes()).await;
+                                return;
+                            }
+
+                            if let Some(ref fname) = payload.filename {
+                                payload.filename = Some(sanitize_filename(fname));
+                            }
+
                             let _ = app.emit("browser-add-download", payload);
                             let body = r#"{"status":"accepted","message":"Download queued in Otium"}"#;
                             let response = format!(
                                 "HTTP/1.1 200 OK\r\n\
-                                Access-Control-Allow-Origin: *\r\n\
-                                Content-Type: application/json\r\n\
+                                {}Content-Type: application/json\r\n\
                                 Content-Length: {}\r\n\r\n{}",
+                                cors_origin_str,
                                 body.len(),
                                 body
                             );
@@ -714,9 +873,9 @@ fn start_browser_bridge(app_handle: AppHandle) {
                     let body = r#"{"error":"invalid_json"}"#;
                     let response = format!(
                         "HTTP/1.1 400 Bad Request\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
+                        {}Content-Type: application/json\r\n\
                         Content-Length: {}\r\n\r\n{}",
+                        cors_origin_str,
                         body.len(),
                         body
                     );
@@ -728,9 +887,9 @@ fn start_browser_bridge(app_handle: AppHandle) {
                 let body = r#"{"error":"not_found"}"#;
                 let response = format!(
                     "HTTP/1.1 404 Not Found\r\n\
-                    Access-Control-Allow-Origin: *\r\n\
-                    Content-Type: application/json\r\n\
+                    {}Content-Type: application/json\r\n\
                     Content-Length: {}\r\n\r\n{}",
+                    cors_origin_str,
                     body.len(),
                     body
                 );
@@ -903,5 +1062,25 @@ mod tests {
         assert_eq!(p.url, "https://example.com/app.exe");
         assert_eq!(p.filename, Some("app.exe".to_string()));
         assert_eq!(p.headers.unwrap().get("Referer").unwrap(), "https://example.com/");
+    }
+
+    #[test]
+    fn test_browser_payload_protocol_validation() {
+        let valid_http = "http://example.com/file.zip";
+        let valid_https = "https://example.com/file.zip";
+        let valid_magnet = "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335de7ec72523ad";
+        let invalid_file = "file:///etc/passwd";
+        let invalid_script = "javascript:alert(1)";
+
+        let is_valid = |url: &str| {
+            let u = url.trim();
+            u.starts_with("http://") || u.starts_with("https://") || u.starts_with("magnet:?")
+        };
+
+        assert!(is_valid(valid_http));
+        assert!(is_valid(valid_https));
+        assert!(is_valid(valid_magnet));
+        assert!(!is_valid(invalid_file));
+        assert!(!is_valid(invalid_script));
     }
 }

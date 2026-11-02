@@ -20,7 +20,11 @@ async function checkStatus() {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 800);
-    const res = await fetch(`${OTIUM_BRIDGE_URL}/ping`, { signal: ctrl.signal });
+    const res = await fetch(`${OTIUM_BRIDGE_URL}/ping`, {
+      method: 'GET',
+      headers: { 'X-Otium-Client': 'browser-extension' },
+      signal: ctrl.signal
+    });
     clearTimeout(timer);
 
     if (res.ok) {
@@ -48,7 +52,10 @@ sendBtn.addEventListener('click', async () => {
   try {
     const res = await fetch(`${OTIUM_BRIDGE_URL}/add`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Otium-Client': 'browser-extension'
+      },
       body: JSON.stringify({ url, filename: null })
     });
 

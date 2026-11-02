@@ -27,10 +27,10 @@
     "security": {
       "csp": {
         "default-src": "'self' https://tauri.localhost",
-        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost https://api.github.com https://github.com https://raw.githubusercontent.com *",
+        "connect-src": "'self' ipc: http://ipc.localhost https://ipc.localhost https://tauri.localhost https://api.github.com https://github.com https://raw.githubusercontent.com",
         "font-src": "'self' data: https://tauri.localhost",
-        "img-src": "'self' data: blob: https://tauri.localhost *",
-        "media-src": "'self' blob: data: https://tauri.localhost *",
+        "img-src": "'self' data: blob: https://tauri.localhost",
+        "media-src": "'self' blob: data: https://tauri.localhost",
         "style-src": "'self' 'unsafe-inline'",
         "script-src": "'self'",
         "worker-src": "'self' blob:",

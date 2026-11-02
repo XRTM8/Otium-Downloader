@@ -46,12 +46,29 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [showExecWarning, setShowExecWarning] = useState(false);
 
   const isAr = lang === 'ar';
   const progressPercent =
     task.totalBytes > 0
       ? Math.min(100, Math.round((task.downloadedBytes / task.totalBytes) * 100))
       : 0;
+
+  const EXECUTABLE_EXTS = ['.exe', '.bat', '.cmd', '.msi', '.ps1', '.vbs', '.reg', '.scr', '.com', '.pif', '.jar'];
+  const isExecutable = EXECUTABLE_EXTS.some((e) => task.filename.toLowerCase().endsWith(e));
+
+  const handleOpenFile = () => {
+    if (isExecutable) {
+      setShowExecWarning(true);
+    } else {
+      downloadManager.openFile(task.savePath || task.filename);
+    }
+  };
+
+  const confirmRunExecutable = () => {
+    setShowExecWarning(false);
+    downloadManager.openFile(task.savePath || task.filename);
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard?.writeText(task.url);
@@ -254,7 +271,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           {task.status === 'completed' && (
             <>
               <button
-                onClick={() => downloadManager.openFile(task.savePath || task.filename)}
+                onClick={handleOpenFile}
                 className="p-1.5 rounded-lg border border-white/[0.06] text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
                 title={isAr ? 'تشغيل / فتح الملف' : 'Open File'}
               >
@@ -408,6 +425,47 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               {isVerifying ? (isAr ? 'جاري الفحص...' : 'Verifying...') : (isAr ? 'فحص SHA-256' : 'Verify SHA-256')}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Executable Security Prompt */}
+      {showExecWarning && (
+        <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-200 animate-in-fade">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              {isAr
+                ? 'تحذير أمان: هذا ملف تنفيذي (.exe / برنامج). تشغيل ملفات البرامج المحملة من الإنترنت قد يضر بنظامك.'
+                : 'Security Warning: Executable binary detected. Launching downloaded programs may pose a security risk.'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowExecWarning(false);
+                handleOpenFolder();
+              }}
+              className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 transition-colors font-medium text-[11px]"
+            >
+              {isAr ? 'عرض في المجلد' : 'Show in Folder'}
+            </button>
+            <button
+              type="button"
+              onClick={confirmRunExecutable}
+              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors text-[11px]"
+            >
+              {isAr ? 'تشغيل على مسؤوليتي' : 'Run Anyway'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExecWarning(false)}
+              className="p-1 rounded text-zinc-400 hover:text-white"
+              title={isAr ? 'إلغاء' : 'Cancel'}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -80,4 +80,33 @@ describe('Torrent & Magnet Protocol Engine', () => {
     expect(meta.files[0]).toEqual({ path: 'my_root/a.txt', length: 100 });
     expect(meta.files[1]).toEqual({ path: 'my_root/b.txt', length: 200 });
   });
+
+  it('neutralizes directory traversal attempts in multi-file torrents (Zip Slip protection)', async () => {
+    // Malicious torrent with path: ["..", "..", "evil.bat"]
+    const encoder = new TextEncoder();
+    const maliciousBytes = encoder.encode(
+      'd8:announce28:http://tracker.test/announce4:infod5:filesld6:lengthi999e4:pathl2:..2:..8:evil.bateee4:name9:test_travee'
+    );
+
+    const meta = await parseTorrentFile(maliciousBytes);
+    expect(meta.files).toHaveLength(1);
+    expect(meta.files[0].path).toBe('test_trav/evil.bat');
+    expect(meta.files[0].path).not.toContain('..');
+  });
+
+  it('protects against prototype pollution and excessive recursion depth in bencode', () => {
+    const encoder = new TextEncoder();
+
+    // 1. Prototype pollution attempt (9 characters for __proto__)
+    const protoAttack = encoder.encode('d9:__proto__d8:polluted4:trueee');
+    const decoder = new BencodeDecoder(protoAttack);
+    const decoded = decoder.decode();
+    expect(decoded).toBeDefined();
+    expect((Object.prototype as any).polluted).toBeUndefined();
+
+    // 2. Excessive recursion depth attempt (> 64 nested lists)
+    const deepPayload = 'l'.repeat(70) + 'i1e' + 'e'.repeat(70);
+    const deepDecoder = new BencodeDecoder(encoder.encode(deepPayload));
+    expect(() => deepDecoder.decode()).toThrow(/depth limit exceeded/i);
+  });
 });
