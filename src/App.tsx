@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, ArrowDownToLine, CheckCircle2, Layers, Settings2 } from 'lucide-react';
-import { Header } from './components/Header';
+import {
+  X,
+  ArrowDownToLine,
+  CheckCircle2,
+  Sliders,
+  } from 'lucide-react';
+import { Header, CURRENT_VERSION, type MainViewTab } from './components/Header';
+import { QuickAddBar } from './components/QuickAddBar';
 import { TaskList } from './components/TaskList';
-import { AddTaskModal } from './components/AddTaskModal';
-import { ShortcutsModal } from './components/ShortcutsModal';
+import { SettingsView } from './components/SettingsView';
 import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
 import { fetchReleaseInfo, isNewerVersion, type ReleaseInfo } from './core/updates/releaseFeed';
 import type { DownloadTask, DownloadStats } from './types/downloader';
-
-const CURRENT_VERSION = '1.4.5';
 
 export function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
@@ -23,20 +26,15 @@ export function App() {
     currentTotalSpeed: 0,
     speedLimitBytesPerSec: 0
   });
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [activeView, setActiveView] = useState<MainViewTab>('downloads');
   const [autoUpdateState, setAutoUpdateState] = useState<{
     version: string;
     percent: number;
     status: 'downloading' | 'ready';
     filePath?: string;
   } | null>(null);
-  const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
-  const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [activeNavTab, setActiveNavTab] = useState<'all' | 'active' | 'completed'>('all');
   const [detectedClipboardUrl, setDetectedClipboardUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -52,50 +50,6 @@ export function App() {
       setSpeedHistory([...downloadManager.getSpeedHistory()]);
     });
 
-    // Global Keyboard Shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName;
-      const isInputActive = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
-
-      // ?: Toggle Keyboard Shortcuts Cheatsheet
-      if (e.key === '?' && !isInputActive) {
-        e.preventDefault();
-        setIsShortcutsOpen((p) => !p);
-        return;
-      }
-
-      // Ctrl/Cmd + N: New Download
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        setInitialAddUrl(undefined);
-        setInitialBatchText(undefined);
-        setIsAddModalOpen(true);
-        return;
-      }
-
-      // Ctrl/Cmd + ,: Open Settings
-      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
-        e.preventDefault();
-        setIsSettingsOpen(true);
-        return;
-      }
-
-      // Escape: Close all modals
-      if (e.key === 'Escape') {
-        setIsAddModalOpen(false);
-        setIsSettingsOpen(false);
-        setIsShortcutsOpen(false);
-        return;
-      }
-
-      // /: Quick Search Focus (when not typing in an input)
-      if (e.key === '/' && !isInputActive) {
-        e.preventDefault();
-        document.getElementById('global-search-input')?.focus();
-        return;
-      }
-    };
-
     // Global Paste Listener (Ctrl+V / Cmd+V outside input fields)
     const handleGlobalPaste = (e: ClipboardEvent) => {
       const activeTag = document.activeElement?.tagName;
@@ -109,20 +63,14 @@ export function App() {
         .map((l) => l.trim())
         .filter((l) => /^https?:\/\/.+/i.test(l));
 
-      if (lines.length > 1) {
+      if (lines.length > 0) {
         e.preventDefault();
-        setInitialBatchText(lines.join('\n'));
-        setInitialAddUrl(undefined);
-        setIsAddModalOpen(true);
-      } else if (lines.length === 1) {
-        e.preventDefault();
-        setInitialAddUrl(lines[0]);
-        setInitialBatchText(undefined);
-        setIsAddModalOpen(true);
+        setActiveView('downloads');
+        setDetectedClipboardUrl(lines[0]);
       }
     };
 
-    // Drag and Drop URLs onto window
+    // Drag and Drop URLs or files onto window
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       setIsDraggingOver(true);
@@ -141,20 +89,20 @@ export function App() {
         downloadManager.addTask(
           resolved.resolvedUrl,
           undefined,
-          undefined,
+          16,
           undefined,
           resolved.suggestedHeaders
         );
+        setActiveView('downloads');
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('paste', handleGlobalPaste);
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
 
-    // VRKA Smart Clipboard Link Sniffer
+    // Smart Clipboard Link Sniffer
     const checkClipboardForUrl = async () => {
       try {
         const text = await navigator.clipboard?.readText?.();
@@ -181,13 +129,12 @@ export function App() {
           }
         })
         .catch(() => {});
-    }, 1500);
+    }, 2000);
 
     return () => {
       unsubscribe();
       clearTimeout(updateTimer);
       window.removeEventListener('focus', checkClipboardForUrl);
-      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('paste', handleGlobalPaste);
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('dragleave', handleDragLeave);
@@ -202,33 +149,16 @@ export function App() {
     document.documentElement.setAttribute('dir', next === 'ar' ? 'rtl' : 'ltr');
   };
 
-  const handleAddTask = (
-    url: string,
-    filename?: string,
-    segmentCount?: number,
-    sha256?: string,
-    headers?: Record<string, string>,
-    mediaInfo?: import('./types/downloader').MediaMetadata
-  ) => {
+  const handleAddTask = (url: string, filename?: string, segmentCount: number = 16) => {
     const resolved = resolveUniversalLink(url);
-    const combinedHeaders = {
-      ...(resolved.suggestedHeaders || {}),
-      ...(headers || {})
-    };
     downloadManager.addTask(
       resolved.resolvedUrl,
       filename,
       segmentCount,
-      sha256,
-      Object.keys(combinedHeaders).length > 0 ? combinedHeaders : undefined,
       undefined,
-      mediaInfo
+      resolved.suggestedHeaders
     );
-  };
-
-  const handleAddBatch = (urls: string[], segmentCount?: number) => {
-    const resolvedUrls = urls.map((u) => resolveUniversalLink(u).resolvedUrl);
-    downloadManager.addBatchTasks(resolvedUrls, segmentCount);
+    setActiveView('downloads');
   };
 
   const startAutonomousDirectUpdate = (info: ReleaseInfo) => {
@@ -248,7 +178,6 @@ export function App() {
       ? `Otium_Downloader_${version}_arm64.apk`
       : `Otium_Downloader_${version}_x64-setup.exe`;
 
-    // Immediately start accelerated 16-segment background download without waiting!
     const taskId = downloadManager.addTask(downloadUrl, filename, 16);
     setAutoUpdateState({
       version,
@@ -273,7 +202,6 @@ export function App() {
           status: 'ready',
           filePath: task.savePath
         });
-        // Immediately trigger package installer / setup wizard!
         downloadManager.openFile(task.savePath);
       } else {
         setAutoUpdateState((prev) => (prev ? { ...prev, percent: pct } : null));
@@ -291,35 +219,29 @@ export function App() {
               <OtiumLogo className="w-6 h-6" glow />
             </div>
             <span className="text-[#00e599] font-bold text-sm block mb-1">
-              {lang === 'ar' ? 'أفلت الرابط هنا للتنزيل المباشر' : 'Drop URL here to download'}
+              {lang === 'ar' ? 'أفلت الرابط هنا للتنزيل الفوري' : 'Drop link here to download'}
             </span>
             <span className="text-zinc-400 text-xs font-mono">
-              {lang === 'ar' ? 'سيتم تسريع التنزيل عبر مسارات متزامنة' : 'Accelerated parallel streams'}
+              {lang === 'ar' ? 'سيتم تسريع التنزيل بـ 16 مساراً متوازياً' : 'Accelerated with 16 parallel streams'}
             </span>
           </div>
         </div>
       )}
 
-      {/* Header */}
+      {/* Unified Minimal Header */}
       <Header
         stats={stats}
         lang={lang}
+        activeTab={activeView}
+        onTabChange={setActiveView}
         speedHistory={speedHistory}
-        isSettingsOpen={isSettingsOpen}
-        onToggleSettings={setIsSettingsOpen}
-        onOpenShortcutsModal={() => setIsShortcutsOpen(true)}
         onToggleLang={handleToggleLang}
-        onOpenAddModal={() => {
-          setInitialAddUrl(undefined);
-          setInitialBatchText(undefined);
-          setIsAddModalOpen(true);
-        }}
       />
 
-      {/* Real-time Autonomous Direct Background Update Banner */}
+      {/* Autonomous Update Banner if downloading */}
       {autoUpdateState && (
         <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 pt-3 animate-in-fade">
-          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/60 via-emerald-900/30 to-[#060709] border border-emerald-500/30 flex items-center justify-between gap-3 shadow-lg">
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-emerald-900/30 to-[#060709] border border-emerald-500/30 flex items-center justify-between gap-3 shadow-lg">
             <div className="flex items-center gap-2.5 overflow-hidden">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75" />
@@ -331,9 +253,9 @@ export function App() {
                 </span>
                 <span className="text-[11px] text-zinc-300 truncate">
                   {autoUpdateState.status === 'ready'
-                    ? (lang === 'ar' ? 'اكتمل التنزيل! جاري فتح نافذة التثبيت...' : 'Downloaded! Opening installer...')
+                    ? (lang === 'ar' ? 'اكتمل التنزيل! جاري فتح التثبيت...' : 'Downloaded! Opening installer...')
                     : (lang === 'ar'
-                        ? `جاري التنزيل فائق السرعة في الخلفية تلقائياً (${autoUpdateState.percent}%)...`
+                        ? `جاري التنزيل فائق السرعة (${autoUpdateState.percent}%)...`
                         : `Downloading update in background (${autoUpdateState.percent}%)...`)}
                 </span>
               </div>
@@ -342,15 +264,14 @@ export function App() {
               {autoUpdateState.status === 'ready' && autoUpdateState.filePath && (
                 <button
                   onClick={() => downloadManager.openFile(autoUpdateState.filePath!)}
-                  className="px-3 py-1.5 rounded-lg bg-[#00e599] text-[#060709] font-bold text-xs transition-transform active:scale-95 shadow-sm"
+                  className="px-3 py-1.5 rounded-lg bg-[#00e599] text-[#060709] font-bold text-xs active:scale-95 transition-transform"
                 >
                   {lang === 'ar' ? 'تثبيت الآن' : 'Install Now'}
                 </button>
               )}
               <button
                 onClick={() => setAutoUpdateState(null)}
-                className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.04]"
-                title={lang === 'ar' ? 'إغلاق' : 'Dismiss'}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -359,89 +280,63 @@ export function App() {
         </div>
       )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-3.5 sm:p-6 pb-32 sm:pb-12">
-        <TaskList
-          tasks={tasks}
-          lang={lang}
-          activeTab={activeNavTab}
-          onTabChange={setActiveNavTab}
-          onPause={(id) => downloadManager.pauseTask(id)}
-          onResume={(id) => downloadManager.resumeTask(id)}
-          onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
-          onRestart={(id) => downloadManager.restartTask(id)}
-          onRemove={(id, deleteDisk) => downloadManager.removeTask(id, deleteDisk)}
-          onClearCompleted={() => downloadManager.clearCompleted()}
-          onOpenAddModal={() => {
-            setInitialAddUrl(undefined);
-            setInitialBatchText(undefined);
-            setIsAddModalOpen(true);
-          }}
-          onPauseAll={() => downloadManager.pauseAll()}
-          onResumeAll={() => downloadManager.resumeAll()}
-        />
+      {/* Main Single-View Container */}
+      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-28 sm:pb-12 space-y-4">
+        {activeView === 'downloads' && (
+          <>
+            {/* Integrated Quick-Add Hero Bar (Zero Modals!) */}
+            <QuickAddBar
+              lang={lang}
+              onAdd={handleAddTask}
+              detectedClipboardUrl={detectedClipboardUrl}
+              onClearClipboardUrl={() => setDetectedClipboardUrl(null)}
+            />
+
+            {/* Active & Pending Downloads */}
+            <TaskList
+              tasks={tasks}
+              lang={lang}
+              mode="downloads"
+              onPause={(id) => downloadManager.pauseTask(id)}
+              onResume={(id) => downloadManager.resumeTask(id)}
+              onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
+              onRestart={(id) => downloadManager.restartTask(id)}
+              onRemove={(id, deleteDisk) => downloadManager.removeTask(id, deleteDisk)}
+              onClearCompleted={() => downloadManager.clearCompleted()}
+              onPauseAll={() => downloadManager.pauseAll()}
+              onResumeAll={() => downloadManager.resumeAll()}
+            />
+          </>
+        )}
+
+        {activeView === 'finished' && (
+          <TaskList
+            tasks={tasks}
+            lang={lang}
+            mode="finished"
+            onPause={(id) => downloadManager.pauseTask(id)}
+            onResume={(id) => downloadManager.resumeTask(id)}
+            onRemove={(id, deleteDisk) => downloadManager.removeTask(id, deleteDisk)}
+            onClearCompleted={() => downloadManager.clearCompleted()}
+            onRestart={(id) => downloadManager.restartTask(id)}
+            onSwitchToDownloads={() => setActiveView('downloads')}
+          />
+        )}
+
+        {activeView === 'settings' && (
+          <SettingsView lang={lang} />
+        )}
       </main>
 
-      {/* Floating Clipboard Sniffer Toast (VRKA Style) */}
-      {detectedClipboardUrl && (
-        <div className="fixed bottom-20 left-3 right-3 z-40 max-w-md mx-auto animate-in-slide-up">
-          <div className="bg-[#0f121a]/95 backdrop-blur-2xl border border-[#00e599]/40 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-base shrink-0">📋</span>
-              <div className="min-w-0">
-                <span className="text-[10px] text-zinc-400 block font-medium">
-                  {lang === 'ar' ? 'رابط تم نسخه بالحافظة:' : 'Link detected in clipboard:'}
-                </span>
-                <span className="font-mono text-zinc-200 truncate block text-[11px] font-semibold">
-                  {detectedClipboardUrl}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => {
-                  handleAddTask(detectedClipboardUrl);
-                  setDetectedClipboardUrl(null);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-[#00e599] text-[#060709] font-bold text-xs shadow-[0_0_12px_rgba(0,229,153,0.35)] active:scale-95 transition-transform"
-              >
-                {lang === 'ar' ? 'تنزيل فوري ⚡' : 'Download ⚡'}
-              </button>
-              <button
-                onClick={() => setDetectedClipboardUrl(null)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VRKA Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#07080a]/95 backdrop-blur-2xl border-t border-white/[0.06] pb-safe px-3 py-1.5">
+      {/* Mobile Bottom Navigation Bar (Thumb Ergonomics) */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#07080a]/95 backdrop-blur-2xl border-t border-white/[0.06] pb-safe px-4 py-2">
         <div className="flex items-center justify-around max-w-md mx-auto">
-          {/* All Downloads Tab */}
-          <button
-            onClick={() => setActiveNavTab('all')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
-              activeNavTab === 'all'
-                ? 'text-[#00e599]'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Layers className="w-5 h-5" />
-            <span className="text-[10px] font-medium tracking-tight">
-              {lang === 'ar' ? 'الكل' : 'All'}
-            </span>
-          </button>
-
           {/* Active Downloads Tab */}
           <button
-            onClick={() => setActiveNavTab('active')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all relative ${
-              activeNavTab === 'active'
-                ? 'text-[#00e599]'
+            onClick={() => setActiveView('downloads')}
+            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-all relative ${
+              activeView === 'downloads'
+                ? 'text-[#00e599] font-bold'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -453,30 +348,17 @@ export function App() {
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-medium tracking-tight">
-              {lang === 'ar' ? 'النشطة' : 'Active'}
+            <span className="text-[11px] tracking-tight">
+              {lang === 'ar' ? 'التنزيلات' : 'Downloads'}
             </span>
           </button>
 
-          {/* Central VRKA High-Action Add Button */}
+          {/* Finished Library Tab */}
           <button
-            onClick={() => {
-              setInitialAddUrl(undefined);
-              setInitialBatchText(undefined);
-              setIsAddModalOpen(true);
-            }}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-[#00e599] text-[#060709] flex items-center justify-center shadow-[0_4px_20px_rgba(0,229,153,0.35)] active:scale-90 transition-transform -mt-5 border-2 border-[#07080a]"
-            aria-label={lang === 'ar' ? 'تنزيل جديد' : 'New Download'}
-          >
-            <Plus className="w-6 h-6 stroke-[2.5]" />
-          </button>
-
-          {/* Completed Library Tab */}
-          <button
-            onClick={() => setActiveNavTab('completed')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all relative ${
-              activeNavTab === 'completed'
-                ? 'text-[#00e599]'
+            onClick={() => setActiveView('finished')}
+            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-all relative ${
+              activeView === 'finished'
+                ? 'text-[#00e599] font-bold'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -488,47 +370,28 @@ export function App() {
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-medium tracking-tight">
+            <span className="text-[11px] tracking-tight">
               {lang === 'ar' ? 'المكتملة' : 'Finished'}
             </span>
           </button>
 
           {/* Settings Tab */}
           <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 transition-all"
+            onClick={() => setActiveView('settings')}
+            className={`flex flex-col items-center gap-1 py-1 px-4 rounded-xl transition-all ${
+              activeView === 'settings'
+                ? 'text-[#00e599] font-bold'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
           >
-            <Settings2 className="w-5 h-5" />
-            <span className="text-[10px] font-medium tracking-tight">
+            <Sliders className="w-5 h-5" />
+            <span className="text-[11px] tracking-tight">
               {lang === 'ar' ? 'الإعدادات' : 'Settings'}
             </span>
           </button>
         </div>
       </nav>
-
-      {/* Add Download Modal */}
-      <AddTaskModal
-        isOpen={isAddModalOpen}
-        lang={lang}
-        initialUrl={initialAddUrl}
-        initialBatchText={initialBatchText}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setInitialAddUrl(undefined);
-          setInitialBatchText(undefined);
-        }}
-        onAdd={handleAddTask}
-        onAddBatch={handleAddBatch}
-      />
-
-      {/* Keyboard Shortcuts Cheatsheet Modal */}
-      <ShortcutsModal
-        isOpen={isShortcutsOpen}
-        lang={lang}
-        onClose={() => setIsShortcutsOpen(false)}
-      />
-
-          </div>
+    </div>
   );
 }
 

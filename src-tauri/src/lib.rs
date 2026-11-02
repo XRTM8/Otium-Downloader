@@ -198,7 +198,8 @@ async fn probe_url(
     let client = reqwest::Client::builder()
         .user_agent(DEFAULT_USER_AGENT)
         .redirect(reqwest::redirect::Policy::limited(15))
-        .connect_timeout(std::time::Duration::from_secs(12))
+        .connect_timeout(std::time::Duration::from_secs(8))
+        .timeout(std::time::Duration::from_secs(10))
         .tcp_keepalive(Some(std::time::Duration::from_secs(15)))
         .build()
         .map_err(|e| e.to_string())?;
@@ -488,7 +489,8 @@ async fn download_segment(
     let client = reqwest::Client::builder()
         .user_agent(DEFAULT_USER_AGENT)
         .redirect(reqwest::redirect::Policy::limited(15))
-        .connect_timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
         .tcp_keepalive(Some(std::time::Duration::from_secs(15)))
         .build()
         .map_err(|e| e.to_string())?;
