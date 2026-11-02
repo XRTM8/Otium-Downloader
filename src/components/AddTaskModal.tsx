@@ -20,6 +20,7 @@ import { isMagnetUri, parseMagnetUri, parseTorrentFile, type TorrentMetadata } f
 import {
   detectPlatform,
   fetchMediaMetadata,
+  resolveMediaDownloadUrl,
   type MediaPreview,
   type MediaFormatOption
 } from '../core/mediaResolver';
@@ -242,21 +243,14 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (torrentMeta) {
-      downloadManager.addTorrentTask(torrentMeta, segments);
-      onClose();
-      return;
-    }
 
     if (mode === 'batch') {
       const urls = batchText
         .split('\n')
         .map((l) => l.trim())
         .filter((l) => /^https?:\/\/.+/i.test(l));
-
       if (urls.length === 0) return;
 
       if (onAddBatch) {
@@ -277,6 +271,24 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     if (cookie.trim()) headers['Cookie'] = cookie.trim();
     if (referer.trim()) headers['Referer'] = referer.trim();
 
+    let targetDownloadUrl = resolved.resolvedUrl;
+    let targetFilename = filename.trim() || undefined;
+
+    // Resolve direct media stream URL for social/video platforms
+    if (mediaPreview && mediaPreview.platform !== 'direct' && mediaPreview.platform !== 'other') {
+      try {
+        const streamInfo = await resolveMediaDownloadUrl(url.trim(), selectedFormat || undefined);
+        if (streamInfo.downloadUrl) {
+          targetDownloadUrl = streamInfo.downloadUrl;
+        }
+        if (streamInfo.suggestedFilename && !targetFilename) {
+          targetFilename = streamInfo.suggestedFilename;
+        }
+      } catch {
+        // Fallback to original resolved link
+      }
+    }
+
     const mediaInfo: MediaMetadata | undefined = mediaPreview
       ? {
           title: mediaPreview.title,
@@ -289,8 +301,8 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
       : undefined;
 
     onAdd(
-      resolved.resolvedUrl,
-      filename.trim() || undefined,
+      targetDownloadUrl,
+      targetFilename,
       segments,
       checksum.trim() || undefined,
       Object.keys(headers).length > 0 ? headers : undefined,
@@ -410,6 +422,16 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                 placeholder="https://domain.com/file1.zip&#10;https://domain.com/file2.zip"
                 className="w-full bg-[#0d0f15] border border-white/[0.08] rounded-xl p-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500/50 transition-all font-mono resize-none shadow-inner"
               />
+            </div>
+          )}
+
+          {/* Torrent Info Pill */}
+          {torrentMeta && (
+            <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-between text-xs font-mono text-purple-300">
+              <span className="truncate font-semibold">{torrentMeta.name}</span>
+              <span className="shrink-0 text-purple-400 font-bold ml-2 rtl:mr-2 rtl:ml-0">
+                {formatBytes(torrentMeta.totalLength)}
+              </span>
             </div>
           )}
 
@@ -612,7 +634,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
           </div>
 
           {/* Submit Actions */}
-          <div className="pt-2">
+          <div className="pt-2 pb-safe sm:pb-0">
             <button
               type="submit"
               disabled={mode === 'single' ? !url.trim() : parsedBatchUrls.length === 0}

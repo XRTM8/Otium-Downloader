@@ -298,28 +298,39 @@ async fn set_global_speed_limit(
 pub fn get_resolved_download_dir(app: &AppHandle) -> std::path::PathBuf {
     #[cfg(target_os = "android")]
     {
-        let candidates = [
-            std::path::PathBuf::from("/storage/emulated/0/Download"),
-            std::path::PathBuf::from("/sdcard/Download"),
-            std::path::PathBuf::from("/storage/emulated/0/Android/data/com.otium.downloader/files/Download"),
-        ];
+        // 1. Android external files directory: always writable without MANAGE_EXTERNAL_STORAGE
+        let ext_dir = std::path::PathBuf::from("/storage/emulated/0/Android/data/com.otium.downloader/files/Download");
+        if std::fs::create_dir_all(&ext_dir).is_ok() {
+            let test_probe = ext_dir.join(".otium_write_probe");
+            if std::fs::write(&test_probe, b"ok").is_ok() {
+                let _ = std::fs::remove_file(&test_probe);
+                return ext_dir;
+            }
+        }
 
-        for dir in &candidates {
-            if dir.exists() || std::fs::create_dir_all(dir).is_ok() {
-                let test_probe = dir.join(".otium_write_probe");
+        // 2. Internal app local data directory: 100% accessible to the app sandbox
+        if let Ok(dir) = app.path().app_local_data_dir() {
+            let sub = dir.join("Download");
+            if std::fs::create_dir_all(&sub).is_ok() {
+                let test_probe = sub.join(".otium_write_probe");
                 if std::fs::write(&test_probe, b"ok").is_ok() {
                     let _ = std::fs::remove_file(&test_probe);
-                    return dir.clone();
+                    return sub;
                 }
             }
         }
 
-        if let Ok(dir) = app.path().app_local_data_dir() {
-            let sub = dir.join("Download");
-            let _ = std::fs::create_dir_all(&sub);
-            return sub;
+        // 3. Public Download dir if permission is granted
+        let pub_dir = std::path::PathBuf::from("/storage/emulated/0/Download");
+        if std::fs::create_dir_all(&pub_dir).is_ok() {
+            let test_probe = pub_dir.join(".otium_write_probe");
+            if std::fs::write(&test_probe, b"ok").is_ok() {
+                let _ = std::fs::remove_file(&test_probe);
+                return pub_dir;
+            }
         }
 
+        // 4. Cache directory fallback
         if let Ok(dir) = app.path().app_cache_dir() {
             let sub = dir.join("Download");
             let _ = std::fs::create_dir_all(&sub);
@@ -341,16 +352,27 @@ pub fn get_resolved_download_dir(app: &AppHandle) -> std::path::PathBuf {
 
 pub fn resolve_destination_path(app: &AppHandle, dest: &str) -> std::path::PathBuf {
     let clean = dest.trim();
+    let base = get_resolved_download_dir(app);
     if clean.is_empty() {
-        let base = get_resolved_download_dir(app);
         return base.join("download.bin");
     }
     let p = Path::new(clean);
-    if p.is_absolute() {
-        p.to_path_buf()
-    } else {
-        let base = get_resolved_download_dir(app);
-        base.join(clean)
+
+    #[cfg(target_os = "android")]
+    {
+        // On Android, always extract the leaf file name and place inside the verified writable base!
+        let fname = p.file_name().unwrap_or_else(|| std::ffi::OsStr::new("download.bin"));
+        base.join(fname)
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        if p.is_absolute() {
+            p.to_path_buf()
+        } else {
+            let fname = p.file_name().unwrap_or_else(|| std::ffi::OsStr::new(clean));
+            base.join(fname)
+        }
     }
 }
 
@@ -1015,286 +1037,12 @@ fn start_browser_bridge(app_handle: AppHandle) {
     });
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct RemoteServerInfo {
-    pub local_ip: String,
-    pub port: u16,
-    pub pin: String,
-    pub enabled: bool,
-}
-
-pub struct RemoteControlState {
-    pub enabled: AtomicBool,
-    pub pin: tokio::sync::RwLock<String>,
-    pub port: u16,
-    pub cached_snapshot: tokio::sync::RwLock<String>,
-}
-
-impl Default for RemoteControlState {
-    fn default() -> Self {
-        let seed = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_millis())
-            .unwrap_or(123456);
-        let pin = format!("{:06}", 100000 + (seed % 900000));
-
-        Self {
-            enabled: AtomicBool::new(true),
-            pin: tokio::sync::RwLock::new(pin),
-            port: 41524,
-            cached_snapshot: tokio::sync::RwLock::new(
-                r#"{"stats":{"activeCount":0,"currentTotalSpeed":0,"totalBytesDownloaded":0},"tasks":[]}"#.to_string()
-            ),
-        }
-    }
-}
-
-pub fn get_local_lan_ip() -> String {
-    let socket = std::net::UdpSocket::bind("0.0.0.0:0");
-    if let Ok(s) = socket {
-        if s.connect("8.8.8.8:80").is_ok() {
-            if let Ok(addr) = s.local_addr() {
-                let ip_str = addr.ip().to_string();
-                if ip_str != "0.0.0.0" && ip_str != "127.0.0.1" {
-                    return ip_str;
-                }
-            }
-        }
-    }
-    "127.0.0.1".to_string()
-}
-
-#[cfg(desktop)]
-fn start_remote_control_server(app_handle: AppHandle, remote_state: Arc<RemoteControlState>) {
-    tauri::async_runtime::spawn(async move {
-        let addr = format!("0.0.0.0:{}", remote_state.port);
-        let listener = match tokio::net::TcpListener::bind(&addr).await {
-            Ok(l) => {
-                log::info!("Otium Remote Server listening on http://{}", addr);
-                l
-            }
-            Err(e) => {
-                log::warn!("Could not bind Remote Server port {}: {}", addr, e);
-                return;
-            }
-        };
-
-        loop {
-            let (mut socket, _) = match listener.accept().await {
-                Ok(conn) => conn,
-                Err(_) => continue,
-            };
-
-            let app = app_handle.clone();
-            let state = remote_state.clone();
-
-            tauri::async_runtime::spawn(async move {
-                use tokio::io::{AsyncReadExt, AsyncWriteExt};
-                let mut buf = vec![0u8; 8192];
-                let n = match socket.read(&mut buf).await {
-                    Ok(n) if n > 0 => n,
-                    _ => return,
-                };
-
-                let request = String::from_utf8_lossy(&buf[..n]);
-
-                // Handle CORS preflight for LAN requests
-                if request.starts_with("OPTIONS") {
-                    let response = "HTTP/1.1 204 No Content\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
-                        Access-Control-Allow-Headers: Content-Type, Authorization, X-Otium-Pin\r\n\
-                        Access-Control-Max-Age: 86400\r\n\
-                        Content-Length: 0\r\n\r\n";
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    return;
-                }
-
-                // Endpoint: GET /remote/ping (No pin required, discovery only)
-                if request.starts_with("GET /remote/ping") {
-                    let local_ip = get_local_lan_ip();
-                    let body = format!(
-                        r#"{{"status":"ok","app":"Otium PC Remote","version":"1.3.1","ip":"{}"}}"#,
-                        local_ip
-                    );
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
-                        Content-Length: {}\r\n\r\n{}",
-                        body.len(),
-                        body
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    return;
-                }
-
-                // Verify PIN for sensitive remote endpoints
-                let expected_pin = state.pin.read().await.clone();
-                let has_valid_pin = request.contains(&format!("pin={}", expected_pin))
-                    || request.lines().any(|l| {
-                        let lower = l.to_ascii_lowercase();
-                        lower.starts_with("x-otium-pin:") && l[12..].trim() == expected_pin
-                    })
-                    || request.contains(&format!("\"pin\":\"{}\"", expected_pin));
-
-                if !has_valid_pin {
-                    let body = r#"{"error":"invalid_pin","message":"Authentication failed: Incorrect 6-digit PIN"}"#;
-                    let response = format!(
-                        "HTTP/1.1 401 Unauthorized\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
-                        Content-Length: {}\r\n\r\n{}",
-                        body.len(),
-                        body
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    return;
-                }
-
-                // Endpoint: GET /remote/status (Protected with PIN)
-                if request.starts_with("GET /remote/status") {
-                    let snapshot = state.cached_snapshot.read().await.clone();
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
-                        Content-Length: {}\r\n\r\n{}",
-                        snapshot.len(),
-                        snapshot
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    return;
-                }
-
-                // Endpoint: POST /remote/add (Add download to PC)
-                if request.starts_with("POST /remote/add") {
-                    if let Some(body_start) = request.find("\r\n\r\n") {
-                        let json_part = &request[body_start + 4..];
-                        if let Ok(mut payload) = serde_json::from_str::<BrowserDownloadPayload>(json_part.trim()) {
-                            let url_trim = payload.url.trim();
-                            if url_trim.starts_with("http://")
-                                || url_trim.starts_with("https://")
-                                || url_trim.starts_with("magnet:?")
-                            {
-                                if let Some(ref fname) = payload.filename {
-                                    payload.filename = Some(sanitize_filename(fname));
-                                }
-                                let _ = app.emit("browser-add-download", payload);
-                                let body = r#"{"status":"accepted","message":"Download queued on PC"}"#;
-                                let response = format!(
-                                    "HTTP/1.1 200 OK\r\n\
-                                    Access-Control-Allow-Origin: *\r\n\
-                                    Content-Type: application/json\r\n\
-                                    Content-Length: {}\r\n\r\n{}",
-                                    body.len(),
-                                    body
-                                );
-                                let _ = socket.write_all(response.as_bytes()).await;
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                // Endpoint: POST /remote/action (Control PC download tasks)
-                if request.starts_with("POST /remote/action") {
-                    if let Some(body_start) = request.find("\r\n\r\n") {
-                        let json_part = &request[body_start + 4..];
-                        #[derive(Deserialize)]
-                        struct ActionPayload {
-                            action: String,
-                            task_id: Option<String>,
-                        }
-                        if let Ok(act) = serde_json::from_str::<ActionPayload>(json_part.trim()) {
-                            let _ = app.emit("remote-control-action", serde_json::json!({
-                                "action": act.action,
-                                "taskId": act.task_id
-                            }));
-                            let body = r#"{"status":"ok","message":"Action delivered to PC"}"#;
-                            let response = format!(
-                                "HTTP/1.1 200 OK\r\n\
-                                Access-Control-Allow-Origin: *\r\n\
-                                Content-Type: application/json\r\n\
-                                Content-Length: {}\r\n\r\n{}",
-                                body.len(),
-                                body
-                            );
-                            let _ = socket.write_all(response.as_bytes()).await;
-                            return;
-                        }
-                    }
-                }
-
-                // Endpoint: POST /remote/shutdown
-                if request.starts_with("POST /remote/shutdown") {
-                    #[cfg(windows)]
-                    {
-                        use std::process::Command;
-                        let _ = Command::new("shutdown")
-                            .args(["/s", "/t", "60", "/c", "Otium: Remote shutdown triggered from mobile"])
-                            .status();
-                    }
-                    let body = r#"{"status":"ok","message":"PC shutdown scheduled in 60s"}"#;
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\n\
-                        Access-Control-Allow-Origin: *\r\n\
-                        Content-Type: application/json\r\n\
-                        Content-Length: {}\r\n\r\n{}",
-                        body.len(),
-                        body
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    return;
-                }
-
-                // 404
-                let body = r#"{"error":"not_found"}"#;
-                let response = format!(
-                    "HTTP/1.1 404 Not Found\r\n\
-                    Access-Control-Allow-Origin: *\r\n\
-                    Content-Type: application/json\r\n\
-                    Content-Length: {}\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
-                let _ = socket.write_all(response.as_bytes()).await;
-            });
-        }
-    });
-}
-
 #[tauri::command]
-async fn get_remote_server_info(
-    state: tauri::State<'_, Arc<RemoteControlState>>,
-) -> Result<RemoteServerInfo, String> {
-    let local_ip = get_local_lan_ip();
-    let pin = state.pin.read().await.clone();
-    let enabled = state.enabled.load(Ordering::Relaxed);
-    Ok(RemoteServerInfo {
-        local_ip,
-        port: state.port,
-        pin,
-        enabled,
-    })
-}
-
-#[tauri::command]
-async fn update_remote_snapshot(
-    state: tauri::State<'_, Arc<RemoteControlState>>,
-    snapshot_json: String,
-) -> Result<(), String> {
-    let mut current = state.cached_snapshot.write().await;
-    *current = snapshot_json;
-    Ok(())
-}
-
-#[tauri::command]
-async fn system_shutdown(cancel: bool) -> Result<(), String> {
+async fn system_shutdown(_cancel: bool) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::process::Command;
-        if cancel {
+        if _cancel {
             let _ = Command::new("shutdown").args(["/a"]).status();
         } else {
             let _ = Command::new("shutdown")
@@ -1319,18 +1067,14 @@ async fn open_browser_extension_dir(app: AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let task_manager = Arc::new(TaskManager::default());
-    let remote_state = Arc::new(RemoteControlState::default());
-    let remote_state_setup = remote_state.clone();
 
     tauri::Builder::default()
         .manage(task_manager)
-        .manage(remote_state)
         .plugin(tauri_plugin_opener::init())
         .setup(|_app| {
             #[cfg(desktop)]
             {
                 start_browser_bridge(_app.handle().clone());
-                start_remote_control_server(_app.handle().clone(), remote_state_setup);
             }
             Ok(())
         })
@@ -1347,8 +1091,6 @@ pub fn run() {
             open_file_item,
             delete_file_item,
             open_browser_extension_dir,
-            get_remote_server_info,
-            update_remote_snapshot,
             system_shutdown
         ])
         .run(tauri::generate_context!())

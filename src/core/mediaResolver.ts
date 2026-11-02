@@ -1,6 +1,6 @@
 /**
  * Otium Media & Stream Resolver
- * Inspired by VRKA architecture: Zero-telemetry on-device stream observation & multi-factor format discovery.
+ * Inspired by VRKA architecture: Zero-telemetry stream observation & multi-factor format discovery.
  */
 
 export type PlatformType = 'youtube' | 'tiktok' | 'instagram' | 'twitter' | 'soundcloud' | 'direct' | 'other';
@@ -27,7 +27,7 @@ export interface MediaPreview {
   resolvedStreamUrl?: string;
 }
 
-const DEFAULT_FORMATS: MediaFormatOption[] = [
+export const DEFAULT_FORMATS: MediaFormatOption[] = [
   {
     id: 'video-1080p',
     label: '1080p Full HD (60fps)',
@@ -150,24 +150,25 @@ export async function fetchMediaMetadata(url: string): Promise<MediaPreview> {
     };
   }
 
-  // 2. TikTok oEmbed
+  // 2. TikTok oEmbed / Rapid Metadata
   if (platform === 'tiktok') {
     try {
       const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
       const res = await fetch(oembedUrl, { signal: AbortSignal.timeout(3500) });
       if (res.ok) {
         const data = await res.json();
+        const title = data.title ? cleanMediaTitle(data.title) : 'TikTok Video';
         return {
           originalUrl: cleanUrl,
           platform: 'tiktok',
-          title: data.title ? cleanMediaTitle(data.title) : 'TikTok Video',
-          author: data.author_name ? `@${data.author_name}` : 'TikTok Creator',
+          title,
+          author: data.author_name || 'TikTok Creator',
           thumbnail: data.thumbnail_url || undefined,
           availableFormats: [
             {
               id: 'tiktok-hd',
-              label: 'HD Video (No Watermark)',
-              labelAr: 'فيديو عالي الدقة (بدون علامة مائية)',
+              label: 'Watermark-Free Video (HD)',
+              labelAr: 'فيديو فائق الجودة بدون علامة مائية',
               ext: 'mp4',
               qualityBadge: 'HD NO-WM',
               isAudioOnly: false,
@@ -183,7 +184,9 @@ export async function fetchMediaMetadata(url: string): Promise<MediaPreview> {
           ],
         };
       }
-    } catch {}
+    } catch {
+      // Fallback
+    }
 
     return {
       originalUrl: cleanUrl,
@@ -193,8 +196,8 @@ export async function fetchMediaMetadata(url: string): Promise<MediaPreview> {
       availableFormats: [
         {
           id: 'tiktok-hd',
-          label: 'HD Video (No Watermark)',
-          labelAr: 'فيديو عالي الدقة (بدون علامة مائية)',
+          label: 'Watermark-Free Video (HD)',
+          labelAr: 'فيديو فائق الجودة بدون علامة مائية',
           ext: 'mp4',
           qualityBadge: 'HD NO-WM',
           isAudioOnly: false,
@@ -268,27 +271,119 @@ export async function fetchMediaMetadata(url: string): Promise<MediaPreview> {
   }
 
   // 5. Direct Media Stream Link
-  const urlObj = new URL(cleanUrl);
-  const pathSegs = urlObj.pathname.split('/').filter(Boolean);
-  const lastSeg = pathSegs.pop() || 'media_stream';
-  const cleanFilename = decodeURIComponent(lastSeg);
-  const ext = cleanFilename.split('.').pop()?.toLowerCase() || 'mp4';
-  const isAudio = ['mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg'].includes(ext);
+  try {
+    const urlObj = new URL(cleanUrl);
+    const pathSegs = urlObj.pathname.split('/').filter(Boolean);
+    const lastSeg = pathSegs.pop() || 'media_stream';
+    const cleanFilename = decodeURIComponent(lastSeg);
+    const ext = cleanFilename.split('.').pop()?.toLowerCase() || 'mp4';
+    const isAudio = ['mp3', 'm4a', 'aac', 'flac', 'wav', 'ogg'].includes(ext);
 
-  return {
-    originalUrl: cleanUrl,
-    platform: 'direct',
-    title: cleanFilename,
-    author: urlObj.hostname,
-    availableFormats: [
-      {
-        id: 'direct-original',
-        label: `Direct Stream (${ext.toUpperCase()})`,
-        labelAr: `التدفق الأصلي المباشر (${ext.toUpperCase()})`,
-        ext,
-        qualityBadge: ext.toUpperCase(),
-        isAudioOnly: isAudio,
-      },
-    ],
-  };
+    return {
+      originalUrl: cleanUrl,
+      platform: 'direct',
+      title: cleanFilename,
+      author: urlObj.hostname,
+      availableFormats: [
+        {
+          id: 'direct-original',
+          label: `Direct Stream (${ext.toUpperCase()})`,
+          labelAr: `التدفق الأصلي المباشر (${ext.toUpperCase()})`,
+          ext,
+          qualityBadge: ext.toUpperCase(),
+          isAudioOnly: isAudio,
+        },
+      ],
+    };
+  } catch {
+    return {
+      originalUrl: cleanUrl,
+      platform: 'other',
+      title: 'Direct Download',
+      availableFormats: DEFAULT_FORMATS,
+    };
+  }
+}
+
+/**
+ * Resolves a social/video platform URL to a direct downloadable MP4/MP3 stream URL.
+ */
+export async function resolveMediaDownloadUrl(
+  url: string,
+  formatOption?: MediaFormatOption
+): Promise<{ downloadUrl: string; suggestedFilename?: string }> {
+  const cleanUrl = url.trim();
+  const platform = detectPlatform(cleanUrl);
+
+  if (platform === 'direct' || platform === 'other') {
+    return { downloadUrl: cleanUrl };
+  }
+
+  // 1. TikTok: High-speed watermark-free direct MP4 CDN extraction
+  if (platform === 'tiktok') {
+    try {
+      const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`, {
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.code === 0 && json.data) {
+          const isAudio = formatOption?.isAudioOnly;
+          const streamUrl = isAudio ? (json.data.music || json.data.play) : json.data.play;
+          const ext = isAudio ? 'mp3' : 'mp4';
+          const title = json.data.title ? cleanMediaTitle(json.data.title) : 'TikTok_Video';
+          return {
+            downloadUrl: streamUrl,
+            suggestedFilename: `${title}.${ext}`,
+          };
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // 2. Multi-platform stream extraction (YouTube, Twitter/X, Instagram) via Cobalt API
+  const cobaltInstances = [
+    'https://api.cobalt.tools',
+    'https://cobalt-api.kwiatekm.tokyo',
+    'https://co.wuk.sh',
+  ];
+
+  for (const instance of cobaltInstances) {
+    try {
+      const isAudio = formatOption?.isAudioOnly ?? false;
+      const bodyPayload: Record<string, unknown> = {
+        url: cleanUrl,
+        downloadMode: isAudio ? 'audio' : 'auto',
+        videoQuality: formatOption?.resolution?.replace('p', '') || '1080',
+        audioFormat: 'mp3',
+      };
+
+      const res = await fetch(`${instance}/`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bodyPayload),
+        signal: AbortSignal.timeout(7000),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if ((data.status === 'stream' || data.status === 'redirect') && data.url) {
+          return {
+            downloadUrl: data.url,
+            suggestedFilename: data.filename || undefined,
+          };
+        }
+      }
+    } catch {
+      // Try next instance
+    }
+  }
+
+  // Fallback to original URL
+  return { downloadUrl: cleanUrl };
 }

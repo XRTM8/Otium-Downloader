@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, ArrowDownToLine, CheckCircle2, Smartphone } from 'lucide-react';
+import { X, Plus, ArrowDownToLine, CheckCircle2, Layers, Settings2 } from 'lucide-react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
-import { RemoteControlModal } from './components/RemoteControlModal';
 import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
 import { fetchReleaseInfo, isNewerVersion, type ReleaseInfo } from './core/updates/releaseFeed';
 import type { DownloadTask, DownloadStats } from './types/downloader';
+
+const CURRENT_VERSION = '1.4.5';
 
 export function App() {
   const [lang, setLang] = useState<'ar' | 'en'>('ar');
@@ -25,7 +26,6 @@ export function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
   const [autoUpdateState, setAutoUpdateState] = useState<{
     version: string;
     percent: number;
@@ -85,7 +85,6 @@ export function App() {
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
         setIsShortcutsOpen(false);
-        setIsRemoteModalOpen(false);
         return;
       }
 
@@ -177,7 +176,7 @@ export function App() {
     const updateTimer = setTimeout(() => {
       fetchReleaseInfo()
         .then((info) => {
-          if (info && isNewerVersion(info.version, '1.4.2')) {
+          if (info && isNewerVersion(info.version, CURRENT_VERSION)) {
             startAutonomousDirectUpdate(info);
           }
         })
@@ -233,6 +232,9 @@ export function App() {
   };
 
   const startAutonomousDirectUpdate = (info: ReleaseInfo) => {
+    if (!info || !isNewerVersion(info.version, CURRENT_VERSION)) return;
+    const existing = downloadManager.getTasks().some((t) => t.filename.includes(info.version));
+    if (existing) return;
     const isAndroid =
       /android/i.test(navigator.userAgent) ||
       (typeof window !== 'undefined' && (window as any).__TAURI_METADATA__?.currentPlatform === 'android');
@@ -306,7 +308,6 @@ export function App() {
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={setIsSettingsOpen}
         onOpenShortcutsModal={() => setIsShortcutsOpen(true)}
-        onOpenRemoteModal={() => setIsRemoteModalOpen(true)}
         onToggleLang={handleToggleLang}
         onOpenAddModal={() => {
           setInitialAddUrl(undefined);
@@ -418,12 +419,27 @@ export function App() {
       )}
 
       {/* VRKA Mobile Bottom Navigation Bar */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#07080a]/95 backdrop-blur-2xl border-t border-white/[0.06] pb-safe px-4 py-1.5">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#07080a]/95 backdrop-blur-2xl border-t border-white/[0.06] pb-safe px-3 py-1.5">
         <div className="flex items-center justify-around max-w-md mx-auto">
+          {/* All Downloads Tab */}
+          <button
+            onClick={() => setActiveNavTab('all')}
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all ${
+              activeNavTab === 'all'
+                ? 'text-[#00e599]'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Layers className="w-5 h-5" />
+            <span className="text-[10px] font-medium tracking-tight">
+              {lang === 'ar' ? 'الكل' : 'All'}
+            </span>
+          </button>
+
           {/* Active Downloads Tab */}
           <button
             onClick={() => setActiveNavTab('active')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all relative ${
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all relative ${
               activeNavTab === 'active'
                 ? 'text-[#00e599]'
                 : 'text-zinc-400 hover:text-zinc-200'
@@ -438,7 +454,7 @@ export function App() {
               )}
             </div>
             <span className="text-[10px] font-medium tracking-tight">
-              {lang === 'ar' ? 'التنزيلات' : 'Active'}
+              {lang === 'ar' ? 'النشطة' : 'Active'}
             </span>
           </button>
 
@@ -458,7 +474,7 @@ export function App() {
           {/* Completed Library Tab */}
           <button
             onClick={() => setActiveNavTab('completed')}
-            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all relative ${
+            className={`flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl transition-all relative ${
               activeNavTab === 'completed'
                 ? 'text-[#00e599]'
                 : 'text-zinc-400 hover:text-zinc-200'
@@ -477,14 +493,14 @@ export function App() {
             </span>
           </button>
 
-          {/* Remote Companion Tab */}
+          {/* Settings Tab */}
           <button
-            onClick={() => setIsRemoteModalOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all text-zinc-400 hover:text-zinc-200"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 transition-all"
           >
-            <Smartphone className="w-5 h-5" />
+            <Settings2 className="w-5 h-5" />
             <span className="text-[10px] font-medium tracking-tight">
-              {lang === 'ar' ? 'التحكم' : 'Remote'}
+              {lang === 'ar' ? 'الإعدادات' : 'Settings'}
             </span>
           </button>
         </div>
@@ -512,13 +528,7 @@ export function App() {
         onClose={() => setIsShortcutsOpen(false)}
       />
 
-      {/* Sovereign Remote Control Companion Modal */}
-      <RemoteControlModal
-        isOpen={isRemoteModalOpen}
-        lang={lang}
-        onClose={() => setIsRemoteModalOpen(false)}
-      />
-    </div>
+          </div>
   );
 }
 

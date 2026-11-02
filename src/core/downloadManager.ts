@@ -194,24 +194,9 @@ export class DownloadManager {
           this.showNotification('تم استلام تنزيل من المتصفح ⚡', event.payload.filename || event.payload.url);
         }
       });
-
-      const unlistenRemoteAction = await listen<{
-        action: string;
-        taskId?: string;
-      }>('remote-control-action', (event) => {
-        const { action, taskId } = event.payload;
-        if (action === 'pause' && taskId) this.pauseTask(taskId);
-        else if (action === 'resume' && taskId) this.resumeTask(taskId);
-        else if (action === 'restart' && taskId) this.restartTask(taskId);
-        else if (action === 'remove' && taskId) this.removeTask(taskId, false);
-        else if (action === 'pause_all') this.pauseAll();
-        else if (action === 'resume_all') this.resumeAll();
-      });
-
       this.tauriUnlisten = () => {
         unlistenProgress();
         unlistenBrowser();
-        unlistenRemoteAction();
       };
     } catch {
       // Running outside Tauri window or in unit tests
