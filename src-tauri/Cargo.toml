@@ -1,6 +1,6 @@
 [package]
 name = "otium_downloader"
-version = "1.4.3"
+version = "1.4.4"
 description = "Otium Downloader — Sovereign, High-Performance Multi-Segment Download Accelerator"
 authors = ["XRTM8"]
 edition = "2021"

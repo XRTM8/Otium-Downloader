@@ -566,7 +566,8 @@ export class DownloadManager {
     segmentCount: number = 8,
     expectedSha256?: string,
     customHeaders?: Record<string, string>,
-    torrentMeta?: TorrentMetadata
+    torrentMeta?: TorrentMetadata,
+    mediaInfo?: import('../types/downloader').MediaMetadata
   ): string {
     const id = 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const isMagnet = isMagnetUri(url);
@@ -576,11 +577,17 @@ export class DownloadManager {
     let defaultName = extractFilename(url);
     if (finalTorrentMeta?.name) {
       defaultName = finalTorrentMeta.name;
+    } else if (mediaInfo?.title) {
+      defaultName = mediaInfo.title;
     }
     const rawFilename = customFilename?.trim() ? sanitizeFilename(customFilename.trim()) : defaultName;
     const existingFilenames = Array.from(this.tasks.values()).map((t) => t.filename);
     const filename = deduplicateFilename(rawFilename, existingFilenames);
-    const category: TaskCategory = finalTorrentMeta ? 'torrents' : detectCategory(filename);
+    const category: TaskCategory = finalTorrentMeta
+      ? 'torrents'
+      : mediaInfo
+      ? 'media'
+      : detectCategory(filename);
     const totalBytes = finalTorrentMeta?.totalLength || (isMagnet ? 0 : 50 * 1024 * 1024);
 
     const baseDir = this.defaultDownloadDir || 'Downloads';
@@ -602,6 +609,7 @@ export class DownloadManager {
       filename,
       category,
       torrentInfo: finalTorrentMeta,
+      mediaInfo,
       headers: customHeaders,
       totalBytes,
       downloadedBytes: 0,

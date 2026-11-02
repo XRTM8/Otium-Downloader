@@ -208,7 +208,8 @@ export function App() {
     filename?: string,
     segmentCount?: number,
     sha256?: string,
-    headers?: Record<string, string>
+    headers?: Record<string, string>,
+    mediaInfo?: import('./types/downloader').MediaMetadata
   ) => {
     const resolved = resolveUniversalLink(url);
     const combinedHeaders = {
@@ -220,7 +221,9 @@ export function App() {
       filename,
       segmentCount,
       sha256,
-      Object.keys(combinedHeaders).length > 0 ? combinedHeaders : undefined
+      Object.keys(combinedHeaders).length > 0 ? combinedHeaders : undefined,
+      undefined,
+      mediaInfo
     );
   };
 

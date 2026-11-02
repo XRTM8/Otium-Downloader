@@ -158,7 +158,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   return (
     <div className="space-y-3">
       {/* Search & Actions Bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         {/* Unified Search Input */}
         <div className="relative flex-1">
           <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 rtl:right-3 rtl:left-auto top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -181,7 +181,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         </div>
 
         {/* Discreet Toolbar Actions */}
-        <div className="flex items-center gap-1 shrink-0 font-mono text-xs">
+        <div className="flex items-center gap-1 shrink-0 font-mono text-xs overflow-x-auto no-scrollbar py-0.5">
           {/* Hidden file input for import */}
           <input
             type="file"
@@ -193,11 +193,11 @@ export const TaskList: React.FC<TaskListProps> = ({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+            className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5 shrink-0"
             title={isAr ? 'استيراد روابط' : 'Import URLs'}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline text-xs">{isAr ? 'استيراد' : 'Import'}</span>
+            <span className="text-xs">{isAr ? 'استيراد' : 'Import'}</span>
           </button>
 
           {tasks.length > 0 && (
@@ -207,7 +207,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                   setIsSelectionMode(!isSelectionMode);
                   if (isSelectionMode) setSelectedIds(new Set());
                 }}
-                className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border transition-colors flex items-center gap-1.5 ${
+                className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border transition-colors flex items-center gap-1.5 shrink-0 ${
                   isSelectionMode
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-[#00e599]'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border-white/[0.05]'
@@ -215,16 +215,16 @@ export const TaskList: React.FC<TaskListProps> = ({
                 title={isAr ? 'وضع التحديد' : 'Select'}
               >
                 <CheckSquare className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline text-xs">{isAr ? 'تحديد' : 'Select'}</span>
+                <span className="text-xs">{isAr ? 'تحديد' : 'Select'}</span>
               </button>
 
               <button
                 onClick={handleExportUrls}
-                className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+                className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5 shrink-0"
                 title={isAr ? 'تصدير الروابط' : 'Export URLs'}
               >
                 {copiedExport ? <Check className="w-3.5 h-3.5 text-[#00e599]" /> : <Download className="w-3.5 h-3.5" />}
-                <span className="hidden sm:inline text-xs">{copiedExport ? (isAr ? 'تم ✓' : 'Done') : (isAr ? 'تصدير' : 'Export')}</span>
+                <span className="text-xs">{copiedExport ? (isAr ? 'تم ✓' : 'Done') : (isAr ? 'تصدير' : 'Export')}</span>
               </button>
             </>
           )}
@@ -232,33 +232,33 @@ export const TaskList: React.FC<TaskListProps> = ({
           {hasDownloading && onPauseAll && (
             <button
               onClick={onPauseAll}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-white/[0.04] border border-white/[0.05] transition-colors flex items-center gap-1.5 shrink-0"
               title={isAr ? 'إيقاف الكل' : 'Pause All'}
             >
               <Pause className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-xs">{isAr ? 'إيقاف الكل' : 'Pause All'}</span>
+              <span className="text-xs">{isAr ? 'إيقاف الكل' : 'Pause All'}</span>
             </button>
           )}
 
           {hasPaused && onResumeAll && (
             <button
               onClick={onResumeAll}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-[#00e599] hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors flex items-center gap-1.5"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-[#00e599] hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors flex items-center gap-1.5 shrink-0"
               title={isAr ? 'استئناف الكل' : 'Resume All'}
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline text-xs">{isAr ? 'استئناف الكل' : 'Resume'}</span>
+              <span className="text-xs">{isAr ? 'استئناف الكل' : 'Resume'}</span>
             </button>
           )}
 
           {hasCompleted && (
             <button
               onClick={onClearCompleted}
-              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.05] transition-colors flex items-center gap-1.5"
+              className="p-2 sm:px-2.5 sm:py-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 border border-white/[0.05] transition-colors flex items-center gap-1.5 shrink-0"
               title={isAr ? 'مسح المكتملة' : 'Clear Done'}
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-xs">{isAr ? 'مسح' : 'Clear'}</span>
+              <span className="text-xs">{isAr ? 'مسح' : 'Clear'}</span>
             </button>
           )}
         </div>
@@ -364,43 +364,69 @@ export const TaskList: React.FC<TaskListProps> = ({
 
       {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
-        <div className="text-center py-16 px-4 border border-white/[0.04] rounded-2xl bg-[#0b0d13]/60 backdrop-blur-sm animate-in-fade relative overflow-hidden">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3.5 text-[#00e599] shadow-[0_0_20px_rgba(0,229,153,0.12)]">
-            <OtiumLogo className="w-6 h-6" glow />
+        <div className="text-center py-12 sm:py-16 px-4 border border-white/[0.04] rounded-3xl bg-gradient-to-b from-[#0b0d14]/70 to-[#07080b]/90 backdrop-blur-md animate-in-fade relative overflow-hidden shadow-2xl">
+          {/* Subtle Ambient Glow */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-[#00e599]/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Central Logo Badge */}
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center mx-auto mb-4 text-[#00e599] shadow-[0_0_24px_rgba(0,229,153,0.18)]">
+            <OtiumLogo className="w-7 h-7" glow />
           </div>
-          <h4 className="text-sm font-semibold text-zinc-100 mb-1">
+
+          <h4 className="text-sm sm:text-base font-bold text-zinc-100 mb-1.5 tracking-tight">
             {searchQuery
               ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No matching downloads'
               : statusFilter === 'completed'
-              ? isAr ? 'لا توجد تنزيلات مكتملة حتى الآن' : 'No finished downloads yet'
-              : isAr ? 'لا توجد تنزيلات نشطة حالياً' : 'No active downloads'}
+              ? isAr ? 'سجل التنزيلات المكتملة فارغ' : 'No finished downloads yet'
+              : isAr ? 'جاهز للتسريع والتنزيل الفوري' : 'Ready to Accelerate Downloads'}
           </h4>
-          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4 font-normal">
+
+          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-5 leading-relaxed font-normal">
             {searchQuery ? (
               isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح شريط البحث' : 'Try searching for something else or clear query'
+            ) : statusFilter === 'completed' ? (
+              isAr ? 'ستظهر هنا جميع الملفات التي تكتمل لتشغيلها أو مشاركتها بلمسة واحدة' : 'Completed downloads will appear here for 1-tap playback'
             ) : (
-              <>
-                <span className="sm:hidden">
-                  {statusFilter === 'completed'
-                    ? isAr ? 'ستظهر هنا جميع الملفات التي تكتمل لتشغيلها بلمسة واحدة' : 'Completed downloads will appear here for 1-tap playback'
-                    : isAr ? 'انسخ أي رابط وافتح التطبيق للتنزيل الفوري، أو اضغط +' : 'Copy any link and switch back to download, or tap +'}
-                </span>
-                <span className="hidden sm:inline">
-                  {statusFilter === 'completed'
-                    ? isAr ? 'الملفات المكتملة تظهر هنا لإدارتها وتشغيلها فوراً' : 'Completed files will be listed here'
-                    : isAr ? 'أفلت رابطاً هنا للتنزيل، أو اضغط ⌘N للبدء' : 'Drop a URL here or press ⌘N to start'}
-                </span>
-              </>
+              isAr
+                ? 'انسخ أي رابط من YouTube أو TikTok أو X أو أي موقع، وسيتم التقاطه فورياً'
+                : 'Copy any link from YouTube, TikTok, X, or web to download instantly'
             )}
           </p>
+
           {!searchQuery && statusFilter !== 'completed' && (
             <button
               onClick={onOpenAddModal}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#00e599]/15 border border-[#00e599]/30 text-[#00e599] hover:bg-[#00e599]/25 active:scale-95 transition-all shadow-[0_0_12px_rgba(0,229,153,0.1)]"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-[#00e599] text-[#07080a] hover:bg-[#00e599]/90 active:scale-95 transition-all shadow-[0_0_20px_rgba(0,229,153,0.3)] mb-6"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>{isAr ? 'تنزيل جديد' : 'New Download'}</span>
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>{isAr ? 'إضافة تنزيل جديد' : 'New Download'}</span>
             </button>
+          )}
+
+          {/* Supported Platforms Strip */}
+          {!searchQuery && (
+            <div className="pt-4 border-t border-white/[0.04] max-w-md mx-auto">
+              <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider block mb-2.5 font-semibold">
+                {isAr ? 'المنصات والبروتوكولات المدعومة' : 'Supported Media & Protocols'}
+              </span>
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                {[
+                  { name: 'YouTube', color: 'text-red-400 border-red-500/20 bg-red-500/5' },
+                  { name: 'TikTok', color: 'text-cyan-400 border-cyan-500/20 bg-cyan-500/5' },
+                  { name: 'Instagram', color: 'text-fuchsia-400 border-fuchsia-500/20 bg-fuchsia-500/5' },
+                  { name: 'X / Twitter', color: 'text-sky-400 border-sky-500/20 bg-sky-500/5' },
+                  { name: 'Direct 16x', color: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/5' },
+                  { name: 'Torrents', color: 'text-purple-400 border-purple-500/20 bg-purple-500/5' }
+                ].map((p) => (
+                  <span
+                    key={p.name}
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-lg border ${p.color}`}
+                  >
+                    {p.name}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       ) : (

@@ -19,6 +19,16 @@ export interface ChecksumInfo {
   verified?: boolean;
 }
 
+export interface MediaMetadata {
+  title?: string;
+  author?: string;
+  thumbnail?: string;
+  platform?: 'youtube' | 'tiktok' | 'instagram' | 'twitter' | 'soundcloud' | 'direct' | 'other';
+  quality?: string;
+  duration?: number;
+  isAudioOnly?: boolean;
+}
+
 export interface DownloadTask {
   id: string;
   url: string;
@@ -37,6 +47,7 @@ export interface DownloadTask {
   headers?: Record<string, string>;
   category?: TaskCategory;
   torrentInfo?: TorrentMetadata;
+  mediaInfo?: MediaMetadata;
 }
 
 export interface DownloadStats {

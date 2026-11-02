@@ -133,6 +133,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   const categoryTheme = getCategoryTheme(task.category);
 
+  const getPlatformBadge = (platform?: string) => {
+    switch (platform) {
+      case 'youtube':
+        return { label: 'YouTube', short: 'YT', color: 'bg-red-500/15 text-red-400 border-red-500/25' };
+      case 'tiktok':
+        return { label: 'TikTok', short: 'TT', color: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/25' };
+      case 'instagram':
+        return { label: 'Instagram', short: 'IG', color: 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/25' };
+      case 'twitter':
+        return { label: 'X', short: 'X', color: 'bg-sky-500/15 text-sky-400 border-sky-500/25' };
+      case 'soundcloud':
+        return { label: 'SoundCloud', short: 'SC', color: 'bg-orange-500/15 text-orange-400 border-orange-500/25' };
+      default:
+        return { label: 'Direct', short: 'DIR', color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25' };
+    }
+  };
+
+
   return (
     <div className="bg-[#0b0d13] border border-white/[0.06] hover:border-white/[0.12] rounded-2xl p-3.5 sm:p-4 transition-all duration-200 shadow-sm relative overflow-hidden">
       {/* Top Row: Icon + Title + Selection */}
@@ -151,9 +169,25 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </button>
         )}
 
-        {/* File Type Badge Icon */}
+        {/* Media Thumbnail or File Type Badge Icon */}
         <div className="shrink-0 mt-0.5">
-          {task.status === 'completed' ? (
+          {task.mediaInfo?.thumbnail ? (
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden bg-black/80 border border-white/[0.08] relative shrink-0 shadow-md">
+              <img
+                src={task.mediaInfo.thumbnail}
+                alt={task.filename}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+              {task.mediaInfo.platform && (
+                <span className={`absolute bottom-1 right-1 rtl:left-1 rtl:right-auto px-1 py-0.2 rounded text-[8px] font-mono font-bold uppercase border backdrop-blur-xs ${getPlatformBadge(task.mediaInfo.platform).color}`}>
+                  {getPlatformBadge(task.mediaInfo.platform).short}
+                </span>
+              )}
+            </div>
+          ) : task.status === 'completed' ? (
             <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_12px_rgba(0,229,153,0.15)]">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -184,15 +218,30 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             >
               {task.filename}
             </h3>
-            {task.category && task.category !== 'other' && (
-              <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-white/[0.06] shrink-0">
-                {task.category}
-              </span>
-            )}
+            <div className="flex items-center gap-1 shrink-0">
+              {task.mediaInfo?.quality && (
+                <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-[#00e599] border border-emerald-500/25 font-bold">
+                  {task.mediaInfo.quality}
+                </span>
+              )}
+              {task.category && task.category !== 'other' && (
+                <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-white/[0.06]">
+                  {task.category}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Size & Progress Numbers */}
-          <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-zinc-400">
+          {/* Size & Author & Progress Numbers */}
+          <div className="flex items-center gap-1.5 mt-1 text-[11px] font-mono text-zinc-400 flex-wrap">
+            {task.mediaInfo?.author && (
+              <>
+                <span className="text-zinc-300 font-medium truncate max-w-[120px] sm:max-w-[180px]">
+                  {task.mediaInfo.author}
+                </span>
+                <span className="text-zinc-600">•</span>
+              </>
+            )}
             <span className="text-zinc-300 font-medium">{formatBytes(task.downloadedBytes)}</span>
             <span className="text-zinc-600">/</span>
             <span>{formatBytes(task.totalBytes)}</span>
