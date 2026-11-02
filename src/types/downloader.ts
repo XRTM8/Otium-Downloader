@@ -56,4 +56,8 @@ export interface AppSettings {
   soundVolume?: number;
   defaultDirectory: string;
   defaultSegmentCount?: number;
+  autoShutdownOnComplete?: boolean;
+  nightSchedulerEnabled?: boolean;
+  nightSchedulerStartHour?: number;
+  nightSchedulerEndHour?: number;
 }

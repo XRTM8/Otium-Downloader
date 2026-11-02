@@ -49,6 +49,10 @@ export class DownloadManager {
   private notificationsEnabled = true;
   private soundEnabled = true;
   private defaultSegmentCount = 8;
+  private autoShutdownOnComplete = false;
+  private nightSchedulerEnabled = false;
+  private nightSchedulerStartHour = 2; // 02:00
+  private nightSchedulerEndHour = 8;   // 08:00
 
   constructor() {
     this.loadSettings();
@@ -81,6 +85,18 @@ export class DownloadManager {
     if (typeof parsed.defaultSegmentCount === 'number') {
       this.defaultSegmentCount = Math.max(1, Math.min(32, parsed.defaultSegmentCount));
     }
+    if (typeof parsed.autoShutdownOnComplete === 'boolean') {
+      this.autoShutdownOnComplete = parsed.autoShutdownOnComplete;
+    }
+    if (typeof parsed.nightSchedulerEnabled === 'boolean') {
+      this.nightSchedulerEnabled = parsed.nightSchedulerEnabled;
+    }
+    if (typeof parsed.nightSchedulerStartHour === 'number') {
+      this.nightSchedulerStartHour = Math.max(0, Math.min(23, parsed.nightSchedulerStartHour));
+    }
+    if (typeof parsed.nightSchedulerEndHour === 'number') {
+      this.nightSchedulerEndHour = Math.max(0, Math.min(23, parsed.nightSchedulerEndHour));
+    }
   }
 
   private saveSettingsToStorage() {
@@ -91,7 +107,11 @@ export class DownloadManager {
       enableSound: this.soundEnabled,
       soundVolume: soundEngine.volume,
       defaultDirectory: this.defaultDownloadDir || 'Downloads',
-      defaultSegmentCount: this.defaultSegmentCount
+      defaultSegmentCount: this.defaultSegmentCount,
+      autoShutdownOnComplete: this.autoShutdownOnComplete,
+      nightSchedulerEnabled: this.nightSchedulerEnabled,
+      nightSchedulerStartHour: this.nightSchedulerStartHour,
+      nightSchedulerEndHour: this.nightSchedulerEndHour
     };
     saveSettingsToStorage(payload);
   }
@@ -175,9 +195,23 @@ export class DownloadManager {
         }
       });
 
+      const unlistenRemoteAction = await listen<{
+        action: string;
+        taskId?: string;
+      }>('remote-control-action', (event) => {
+        const { action, taskId } = event.payload;
+        if (action === 'pause' && taskId) this.pauseTask(taskId);
+        else if (action === 'resume' && taskId) this.resumeTask(taskId);
+        else if (action === 'restart' && taskId) this.restartTask(taskId);
+        else if (action === 'remove' && taskId) this.removeTask(taskId, false);
+        else if (action === 'pause_all') this.pauseAll();
+        else if (action === 'resume_all') this.resumeAll();
+      });
+
       this.tauriUnlisten = () => {
         unlistenProgress();
         unlistenBrowser();
+        unlistenRemoteAction();
       };
     } catch {
       // Running outside Tauri window or in unit tests
@@ -203,7 +237,42 @@ export class DownloadManager {
     this.notifyTimeout = window.setTimeout(() => {
       this.notifyTimeout = null;
       this.listeners.forEach((l) => l());
+      this.syncRemoteSnapshot();
     }, 60);
+  }
+
+  private syncRemoteSnapshot() {
+    if (!isTauri()) return;
+    try {
+      import('@tauri-apps/api/core').then(({ invoke }) => {
+        const snapshot = JSON.stringify({
+          stats: this.getStats(),
+          tasks: this.getTasks()
+        });
+        invoke('update_remote_snapshot', { snapshotJson: snapshot }).catch(() => {});
+      }).catch(() => {});
+    } catch {}
+  }
+
+  public async getRemoteServerInfo(): Promise<{ local_ip: string; port: number; pin: string; enabled: boolean } | null> {
+    if (!isTauri()) return null;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await invoke('get_remote_server_info');
+    } catch {
+      return null;
+    }
+  }
+
+  public async triggerShutdown(cancel: boolean = false): Promise<boolean> {
+    if (!isTauri()) return false;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('system_shutdown', { cancel });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public getSpeedHistory(): number[] {
@@ -241,7 +310,11 @@ export class DownloadManager {
       enableSound: this.soundEnabled,
       soundVolume: soundEngine.volume,
       defaultDirectory: this.defaultDownloadDir || 'Downloads',
-      defaultSegmentCount: this.defaultSegmentCount
+      defaultSegmentCount: this.defaultSegmentCount,
+      autoShutdownOnComplete: this.autoShutdownOnComplete,
+      nightSchedulerEnabled: this.nightSchedulerEnabled,
+      nightSchedulerStartHour: this.nightSchedulerStartHour,
+      nightSchedulerEndHour: this.nightSchedulerEndHour
     };
   }
 
@@ -276,9 +349,42 @@ export class DownloadManager {
     if (settings.defaultSegmentCount !== undefined) {
       this.defaultSegmentCount = Math.max(1, Math.min(32, settings.defaultSegmentCount));
     }
+    if (settings.autoShutdownOnComplete !== undefined) {
+      this.autoShutdownOnComplete = Boolean(settings.autoShutdownOnComplete);
+    }
+    if (settings.nightSchedulerEnabled !== undefined) {
+      this.nightSchedulerEnabled = Boolean(settings.nightSchedulerEnabled);
+    }
+    if (settings.nightSchedulerStartHour !== undefined) {
+      this.nightSchedulerStartHour = Math.max(0, Math.min(23, settings.nightSchedulerStartHour));
+    }
+    if (settings.nightSchedulerEndHour !== undefined) {
+      this.nightSchedulerEndHour = Math.max(0, Math.min(23, settings.nightSchedulerEndHour));
+    }
     this.saveSettingsToStorage();
     this.notify(true);
     this.processQueue();
+  }
+
+  public isNightSchedulerActive(): boolean {
+    if (!this.nightSchedulerEnabled) return true;
+    const hour = new Date().getHours();
+    if (this.nightSchedulerStartHour <= this.nightSchedulerEndHour) {
+      return hour >= this.nightSchedulerStartHour && hour < this.nightSchedulerEndHour;
+    } else {
+      return hour >= this.nightSchedulerStartHour || hour < this.nightSchedulerEndHour;
+    }
+  }
+
+  private checkAutoShutdown() {
+    if (!this.autoShutdownOnComplete) return;
+    const remainingActiveOrQueued = Array.from(this.tasks.values()).filter(
+      (t) => t.status === 'downloading' || t.status === 'queued'
+    );
+    if (remainingActiveOrQueued.length === 0) {
+      this.showNotification('إيقاف التشغيل المجدول', 'اكتملت جميع التحميلات، جاري إيقاف تشغيل الكمبيوتر...');
+      this.triggerShutdown(false);
+    }
   }
 
   public async openFile(filePath?: string) {
@@ -420,6 +526,10 @@ export class DownloadManager {
   }
 
   public processQueue() {
+    if (this.nightSchedulerEnabled && !this.isNightSchedulerActive()) {
+      return;
+    }
+
     let activeDownloading = 0;
     for (const task of this.tasks.values()) {
       if (task.status === 'downloading') {
@@ -640,6 +750,7 @@ export class DownloadManager {
       this.showNotification('اكتمل التنزيل بنجاح ⚡', `تم حفظ الملف: ${task.filename}`);
       this.scheduleStorageSave();
       this.notify(true);
+      this.checkAutoShutdown();
       this.processQueue();
     } catch (err) {
       console.warn('Native download exception:', err);
@@ -685,6 +796,7 @@ export class DownloadManager {
       this.showNotification('اكتمل التنزيل بنجاح ⚡', `تم حفظ الملف: ${task.filename}`);
       this.scheduleStorageSave();
       this.notify(true);
+      this.checkAutoShutdown();
       this.processQueue();
       return;
     }
@@ -882,6 +994,7 @@ export class DownloadManager {
       task.etaSeconds = 0;
       this.speedSamples.delete(task.id);
       soundEngine.playCompleteChime();
+      this.checkAutoShutdown();
       this.processQueue();
     }
 

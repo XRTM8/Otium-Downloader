@@ -8,7 +8,10 @@ import {
   CheckCircle2,
   ShieldAlert,
   FolderOpen,
-  HelpCircle
+  HelpCircle,
+  Smartphone,
+  Moon,
+  Power
 } from 'lucide-react';
 import { OtiumLogo } from './OtiumLogo';
 import { ThroughputSparkline } from './ThroughputSparkline';
@@ -24,6 +27,7 @@ interface HeaderProps {
   isSettingsOpen?: boolean;
   onToggleSettings?: (open: boolean) => void;
   onOpenShortcutsModal?: () => void;
+  onOpenRemoteModal?: () => void;
   onToggleLang: () => void;
   onOpenAddModal: () => void;
 }
@@ -37,6 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   isSettingsOpen: controlledSettingsOpen,
   onToggleSettings,
   onOpenShortcutsModal,
+  onOpenRemoteModal,
   onToggleLang,
   onOpenAddModal
 }) => {
@@ -56,6 +61,10 @@ export const Header: React.FC<HeaderProps> = ({
   const [notifications, setNotifications] = useState(currentSettings.enableNotifications);
   const [sound, setSound] = useState(currentSettings.enableSound ?? true);
   const [soundVolume, setSoundVolume] = useState(currentSettings.soundVolume ?? 0.5);
+  const [autoShutdown, setAutoShutdown] = useState(currentSettings.autoShutdownOnComplete ?? false);
+  const [nightScheduler, setNightScheduler] = useState(currentSettings.nightSchedulerEnabled ?? false);
+  const [nightStartHour, setNightStartHour] = useState(currentSettings.nightSchedulerStartHour ?? 2);
+  const [nightEndHour, setNightEndHour] = useState(currentSettings.nightSchedulerEndHour ?? 8);
 
   const isAr = lang === 'ar';
 
@@ -101,6 +110,24 @@ export const Header: React.FC<HeaderProps> = ({
   const handleVolumeChange = (vol: number) => {
     setSoundVolume(vol);
     downloadManager.updateSettings({ soundVolume: vol });
+  };
+
+  const handleAutoShutdownToggle = () => {
+    const next = !autoShutdown;
+    setAutoShutdown(next);
+    downloadManager.updateSettings({ autoShutdownOnComplete: next });
+  };
+
+  const handleNightSchedulerToggle = () => {
+    const next = !nightScheduler;
+    setNightScheduler(next);
+    downloadManager.updateSettings({ nightSchedulerEnabled: next });
+  };
+
+  const handleNightHoursChange = (start: number, end: number) => {
+    setNightStartHour(start);
+    setNightEndHour(end);
+    downloadManager.updateSettings({ nightSchedulerStartHour: start, nightSchedulerEndHour: end });
   };
 
   return (
@@ -167,6 +194,17 @@ export const Header: React.FC<HeaderProps> = ({
                 title={isAr ? 'اختصارات لوحة المفاتيح (?)' : 'Keyboard Shortcuts (?)'}
               >
                 <HelpCircle className="w-4 h-4" />
+              </button>
+            )}
+
+            {onOpenRemoteModal && (
+              <button
+                onClick={onOpenRemoteModal}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-[#00e599] hover:bg-white/[0.04] transition-colors border border-transparent hover:border-white/[0.06] relative"
+                title={isAr ? 'التحكم عن بُعد / ربط الأجهزة (Remote Link)' : 'Remote Link / Multi-device'}
+              >
+                <Smartphone className="w-4 h-4" />
+                <span className="absolute top-1 right-1 rtl:left-1 rtl:right-auto w-1.5 h-1.5 rounded-full bg-[#00e599] opacity-75" />
               </button>
             )}
 
@@ -332,6 +370,115 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Smart Night Scheduler Card */}
+              <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-zinc-200 font-semibold text-xs">
+                    <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{isAr ? 'الجدول الليلي الذكي' : 'Smart Night Scheduler'}</span>
+                  </div>
+                  <button
+                    onClick={handleNightSchedulerToggle}
+                    className={`w-8 h-4.5 rounded-full transition-colors relative p-0.5 ${
+                      nightScheduler ? 'bg-[#00e599]' : 'bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`w-3.5 h-3.5 rounded-full bg-[#08090c] transition-transform ${
+                        nightScheduler ? 'translate-x-3.5 rtl:-translate-x-3.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  {isAr
+                    ? 'بدء التنزيلات فقط خلال الساعات المحددة للاستفادة من سرعة الإنترنت وسعة التحميل المجانية.'
+                    : 'Download only during off-peak hours to maximize speeds and ISP allowances.'}
+                </p>
+                {nightScheduler && (
+                  <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between text-[11px]">
+                    <span className="text-zinc-300">
+                      {isAr ? `فترة التحميل: من ${nightStartHour}:00 إلى ${nightEndHour}:00` : `Hours: ${nightStartHour}:00 to ${nightEndHour}:00`}
+                    </span>
+                    <div className="flex gap-1">
+                      {[
+                        { s: 2, e: 8, label: '02-08' },
+                        { s: 1, e: 7, label: '01-07' },
+                        { s: 3, e: 9, label: '03-09' }
+                      ].map((slot) => (
+                        <button
+                          key={slot.label}
+                          onClick={() => handleNightHoursChange(slot.s, slot.e)}
+                          className={`px-2 py-0.5 rounded text-[10px] border font-mono transition-colors ${
+                            nightStartHour === slot.s && nightEndHour === slot.e
+                              ? 'border-[#00e599]/60 text-[#00e599] bg-[#00e599]/10'
+                              : 'border-white/[0.06] text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {slot.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Auto-Shutdown Card */}
+              <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-zinc-200 font-semibold text-xs">
+                    <Power className="w-3.5 h-3.5 text-rose-400" />
+                    <span>{isAr ? 'إيقاف تشغيل الكمبيوتر عند الانتهاء' : 'Auto-Shutdown on Completion'}</span>
+                  </div>
+                  <button
+                    onClick={handleAutoShutdownToggle}
+                    className={`w-8 h-4.5 rounded-full transition-colors relative p-0.5 ${
+                      autoShutdown ? 'bg-[#00e599]' : 'bg-white/10'
+                    }`}
+                  >
+                    <div
+                      className={`w-3.5 h-3.5 rounded-full bg-[#08090c] transition-transform ${
+                        autoShutdown ? 'translate-x-3.5 rtl:-translate-x-3.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  {isAr
+                    ? 'إيقاف تشغيل الحاسوب تلقائياً بأمان بمجرد اكتمال كافة التنزيلات في قائمة الانتظار.'
+                    : 'Safely shutdown the computer automatically once all queued downloads complete.'}
+                </p>
+              </div>
+
+              {/* Remote Control Launcher Card */}
+              {onOpenRemoteModal && (
+                <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-zinc-200 text-xs flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5 text-[#00e599]" />
+                      <span>{isAr ? 'التحكم عن بُعد من الهاتف (Remote Link)' : 'Remote Mobile Link'}</span>
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono">Port 41524</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    {isAr
+                      ? 'تحكم بتنزيلات الكمبيوتر وأضف روابط وراقب السرعة مباشرة من هاتفك عبر شبكة Wi-Fi المحلية.'
+                      : 'Control PC downloads, add links, and monitor speeds directly from your phone over local Wi-Fi.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSettingsOpen(false);
+                      onOpenRemoteModal();
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-[#00e599]/30 bg-[#00e599]/10 hover:bg-[#00e599]/20 text-[#00e599] transition-colors text-xs font-mono font-medium"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'فتح لوحة ربط الهاتف والكمبيوتر' : 'Open Remote Link Panel'}</span>
+                  </button>
+                </div>
+              )}
 
               {/* Browser Extension Card */}
               <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2">

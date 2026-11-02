@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { RemoteControlModal } from './components/RemoteControlModal';
 import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
@@ -22,6 +23,7 @@ export function App() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
   const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
   const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
@@ -73,6 +75,7 @@ export function App() {
         setIsAddModalOpen(false);
         setIsSettingsOpen(false);
         setIsShortcutsOpen(false);
+        setIsRemoteModalOpen(false);
         return;
       }
 
@@ -212,6 +215,7 @@ export function App() {
         isSettingsOpen={isSettingsOpen}
         onToggleSettings={setIsSettingsOpen}
         onOpenShortcutsModal={() => setIsShortcutsOpen(true)}
+        onOpenRemoteModal={() => setIsRemoteModalOpen(true)}
         onToggleLang={handleToggleLang}
         onOpenAddModal={() => {
           setInitialAddUrl(undefined);
@@ -261,6 +265,13 @@ export function App() {
         isOpen={isShortcutsOpen}
         lang={lang}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+
+      {/* Sovereign Remote Control Companion Modal */}
+      <RemoteControlModal
+        isOpen={isRemoteModalOpen}
+        lang={lang}
+        onClose={() => setIsRemoteModalOpen(false)}
       />
     </div>
   );

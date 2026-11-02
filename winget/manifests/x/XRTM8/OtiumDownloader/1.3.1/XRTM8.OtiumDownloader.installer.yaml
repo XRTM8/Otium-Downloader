@@ -1,0 +1,15 @@
+PackageIdentifier: XRTM8.OtiumDownloader
+PackageVersion: 1.3.1
+Platform:
+  - Windows.Desktop
+InstallModes:
+  - interactive
+  - silent
+Installers:
+  - Architecture: x64
+    InstallerType: nullsoft
+    InstallerUrl: https://github.com/XRTM8/Otium-Downloader/releases/download/v1.3.1/Otium-Downloader-Setup-v1.3.1.exe
+    InstallerSha256: 65F87F87987906E206D2FD902FB04599A247D3071EDE8B8EDD38C26ED16F88F0
+    Scope: user
+ManifestType: installer
+ManifestVersion: 1.6.0

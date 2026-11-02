@@ -306,4 +306,26 @@ describe('DownloadManager', () => {
 
     mgr.destroy();
   });
+
+  it('updates and persists night scheduler and auto-shutdown settings', () => {
+    const mgr = new DownloadManager();
+
+    mgr.updateSettings({
+      nightSchedulerEnabled: true,
+      nightSchedulerStartHour: 1,
+      nightSchedulerEndHour: 7,
+      autoShutdownOnComplete: true
+    });
+
+    const settings = mgr.getSettings();
+    expect(settings.nightSchedulerEnabled).toBe(true);
+    expect(settings.nightSchedulerStartHour).toBe(1);
+    expect(settings.nightSchedulerEndHour).toBe(7);
+    expect(settings.autoShutdownOnComplete).toBe(true);
+
+    // Verify night scheduler active window calculation
+    expect(typeof mgr.isNightSchedulerActive()).toBe('boolean');
+
+    mgr.destroy();
+  });
 });

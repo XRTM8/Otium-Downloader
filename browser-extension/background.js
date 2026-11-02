@@ -5,6 +5,10 @@
 
 const OTIUM_BRIDGE_URL = 'http://127.0.0.1:41523';
 
+// In-memory sniffer cache for detected video/media streams per browser tab
+const tabMedia = new Map();
+const MEDIA_REGEX = /\.(m3u8|mpd|mp4|webm|flv|mkv)(\?.*)?$/i;
+
 // 1. Initialize Context Menus
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -81,6 +85,61 @@ chrome.downloads.onCreated.addListener(async (item) => {
   if (sent) {
     showNotification('تم التقاط التنزيل ⚡', filename || url);
   }
+});
+
+// 4. Live Media/Stream Sniffer (HLS .m3u8, DASH .mpd, MP4, WebM)
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    if (details.tabId > 0 && details.url) {
+      const match = details.url.match(MEDIA_REGEX);
+      if (match) {
+        const ext = match[1].toLowerCase();
+        let list = tabMedia.get(details.tabId) || [];
+        if (!list.some((m) => m.url === details.url)) {
+          const rawName = details.url.split('?')[0].split('/').pop() || `stream.${ext}`;
+          let cleanName = decodeURIComponent(rawName);
+          list.push({
+            url: details.url,
+            ext,
+            type: ext === 'm3u8' ? 'HLS Stream' : ext === 'mpd' ? 'DASH Stream' : ext.toUpperCase(),
+            filename: cleanName,
+            timestamp: Date.now()
+          });
+          if (list.length > 30) list = list.slice(-30);
+          tabMedia.set(details.tabId, list);
+
+          try {
+            chrome.action.setBadgeText({ tabId: details.tabId, text: String(list.length) });
+            chrome.action.setBadgeBackgroundColor({ tabId: details.tabId, color: '#00e599' });
+          } catch {}
+        }
+      }
+    }
+  },
+  { urls: ['<all_urls>'] }
+);
+
+// Tab cleanup on close or reload
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabMedia.delete(tabId);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading') {
+    tabMedia.delete(tabId);
+    try {
+      chrome.action.setBadgeText({ tabId, text: '' });
+    } catch {}
+  }
+});
+
+// Runtime message responder for popup queries
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'GET_TAB_MEDIA') {
+    const list = tabMedia.get(request.tabId) || [];
+    sendResponse({ media: list });
+  }
+  return true;
 });
 
 /**
