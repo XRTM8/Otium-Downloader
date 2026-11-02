@@ -77,6 +77,21 @@ describe('DownloadManager', () => {
     mgr.destroy();
   });
 
+  it('correctly handles magnet links and assigns torrents category', () => {
+    const mgr = new DownloadManager();
+    const magnetUri = 'magnet:?xt=urn:btih:da39a3ee5e6b4b0d3255bfef95601890afd80709&dn=ArchLinux_2026.iso&xl=1073741824';
+    const id = mgr.addTask(magnetUri);
+    const task = mgr.getTasks().find((t) => t.id === id);
+
+    expect(task).toBeDefined();
+    expect(task?.category).toBe('torrents');
+    expect(task?.filename).toBe('ArchLinux_2026.iso');
+    expect(task?.torrentInfo?.infoHash).toBe('da39a3ee5e6b4b0d3255bfef95601890afd80709');
+    expect(task?.totalBytes).toBe(1073741824);
+
+    mgr.destroy();
+  });
+
   it('restores tasks from storage and marks downloading tasks as paused', () => {
     const memoryStorage: Record<string, string> = {};
     const mockStorage: Storage = {

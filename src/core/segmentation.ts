@@ -1,4 +1,4 @@
-import type { DownloadChunk } from '../types/downloader';
+import type { DownloadChunk, TaskCategory } from '../types/downloader';
 
 /**
  * Calculates parallel chunks for segmented downloading.
@@ -255,8 +255,11 @@ export function humanizeErrorMessage(rawError?: string, lang: 'ar' | 'en' = 'ar'
 /**
  * Automatically classifies a file by its extension into functional categories.
  */
-export function detectCategory(filename: string): 'programs' | 'media' | 'documents' | 'archives' | 'other' {
+export function detectCategory(filename: string): TaskCategory {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (['torrent'].includes(ext)) {
+    return 'torrents';
+  }
   if (['exe', 'msi', 'apk', 'dmg', 'deb', 'rpm', 'iso', 'img', 'bin'].includes(ext)) {
     return 'programs';
   }

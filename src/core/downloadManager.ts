@@ -1,4 +1,4 @@
-import type { DownloadTask, DownloadStats, AppSettings } from '../types/downloader';
+import type { DownloadTask, DownloadStats, AppSettings, TaskCategory } from '../types/downloader';
 import {
   calculateSegments,
   extractFilename,
@@ -7,6 +7,7 @@ import {
   deduplicateFilename
 } from './segmentation';
 import { soundEngine } from './sound';
+import { isMagnetUri, parseMagnetUri, type TorrentMetadata } from './torrent';
 import {
   loadTasksFromStorage,
   saveTasksToStorage,
@@ -47,6 +48,7 @@ export class DownloadManager {
   private speedLimitBytes = 0;
   private notificationsEnabled = true;
   private soundEnabled = true;
+  private defaultSegmentCount = 8;
 
   constructor() {
     this.loadSettings();
@@ -76,6 +78,9 @@ export class DownloadManager {
     if (typeof parsed.soundVolume === 'number') {
       soundEngine.volume = Math.max(0, Math.min(1, parsed.soundVolume));
     }
+    if (typeof parsed.defaultSegmentCount === 'number') {
+      this.defaultSegmentCount = Math.max(1, Math.min(32, parsed.defaultSegmentCount));
+    }
   }
 
   private saveSettingsToStorage() {
@@ -85,7 +90,8 @@ export class DownloadManager {
       enableNotifications: this.notificationsEnabled,
       enableSound: this.soundEnabled,
       soundVolume: soundEngine.volume,
-      defaultDirectory: this.defaultDownloadDir || 'Downloads'
+      defaultDirectory: this.defaultDownloadDir || 'Downloads',
+      defaultSegmentCount: this.defaultSegmentCount
     };
     saveSettingsToStorage(payload);
   }
@@ -140,7 +146,7 @@ export class DownloadManager {
     if (!isTauri()) return;
     try {
       const { listen } = await import('@tauri-apps/api/event');
-      const unlisten = await listen<{
+      const unlistenProgress = await listen<{
         task_id: string;
         segment_index: number;
         delta_bytes: number;
@@ -151,7 +157,28 @@ export class DownloadManager {
         const { task_id, segment_index, delta_bytes, downloaded_bytes, is_finished } = event.payload;
         this.handleTauriChunkProgress(task_id, segment_index, delta_bytes, downloaded_bytes, is_finished);
       });
-      this.tauriUnlisten = unlisten;
+
+      const unlistenBrowser = await listen<{
+        url: string;
+        filename?: string;
+        headers?: Record<string, string>;
+      }>('browser-add-download', (event) => {
+        if (event.payload?.url) {
+          this.addTask(
+            event.payload.url,
+            event.payload.filename,
+            this.defaultSegmentCount,
+            undefined,
+            event.payload.headers
+          );
+          this.showNotification('تم استلام تنزيل من المتصفح ⚡', event.payload.filename || event.payload.url);
+        }
+      });
+
+      this.tauriUnlisten = () => {
+        unlistenProgress();
+        unlistenBrowser();
+      };
     } catch {
       // Running outside Tauri window or in unit tests
     }
@@ -213,7 +240,8 @@ export class DownloadManager {
       enableNotifications: this.notificationsEnabled,
       enableSound: this.soundEnabled,
       soundVolume: soundEngine.volume,
-      defaultDirectory: this.defaultDownloadDir || 'Downloads'
+      defaultDirectory: this.defaultDownloadDir || 'Downloads',
+      defaultSegmentCount: this.defaultSegmentCount
     };
   }
 
@@ -245,6 +273,9 @@ export class DownloadManager {
     if (settings.soundVolume !== undefined) {
       soundEngine.volume = Math.max(0, Math.min(1, settings.soundVolume));
     }
+    if (settings.defaultSegmentCount !== undefined) {
+      this.defaultSegmentCount = Math.max(1, Math.min(32, settings.defaultSegmentCount));
+    }
     this.saveSettingsToStorage();
     this.notify(true);
     this.processQueue();
@@ -257,6 +288,16 @@ export class DownloadManager {
       await invoke('open_file_item', { filePath });
     } catch (e) {
       console.warn('Failed to open file:', e);
+    }
+  }
+
+  public async openBrowserExtensionDir() {
+    if (!isTauri()) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('open_browser_extension_dir');
+    } catch (e) {
+      console.warn('Failed to open browser extension dir:', e);
     }
   }
 
@@ -414,14 +455,23 @@ export class DownloadManager {
     customFilename?: string,
     segmentCount: number = 8,
     expectedSha256?: string,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
+    torrentMeta?: TorrentMetadata
   ): string {
     const id = 'task_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    const rawFilename = customFilename?.trim() ? sanitizeFilename(customFilename.trim()) : extractFilename(url);
+    const isMagnet = isMagnetUri(url);
+    const parsedMagnet = isMagnet ? parseMagnetUri(url) : null;
+    const finalTorrentMeta = torrentMeta || parsedMagnet || undefined;
+
+    let defaultName = extractFilename(url);
+    if (finalTorrentMeta?.name) {
+      defaultName = finalTorrentMeta.name;
+    }
+    const rawFilename = customFilename?.trim() ? sanitizeFilename(customFilename.trim()) : defaultName;
     const existingFilenames = Array.from(this.tasks.values()).map((t) => t.filename);
     const filename = deduplicateFilename(rawFilename, existingFilenames);
-    const category = detectCategory(filename);
-    const totalBytes = 50 * 1024 * 1024; // 50MB initial placeholder until remote probe
+    const category: TaskCategory = finalTorrentMeta ? 'torrents' : detectCategory(filename);
+    const totalBytes = finalTorrentMeta?.totalLength || (isMagnet ? 0 : 50 * 1024 * 1024);
 
     const baseDir = this.defaultDownloadDir || 'Downloads';
     const separator = baseDir.includes('\\') ? '\\' : '/';
@@ -441,6 +491,7 @@ export class DownloadManager {
       url,
       filename,
       category,
+      torrentInfo: finalTorrentMeta,
       headers: customHeaders,
       totalBytes,
       downloadedBytes: 0,
@@ -464,6 +515,11 @@ export class DownloadManager {
     this.scheduleStorageSave();
     soundEngine.playStartSweep();
     this.notify(true);
+
+    if (finalTorrentMeta) {
+      // Torrent task initialized - handled by P2P/swarm resolver
+      return id;
+    }
 
     if (isTauri() && initialStatus === 'downloading') {
       void (async () => {
@@ -506,6 +562,20 @@ export class DownloadManager {
     }
 
     return id;
+  }
+
+  public addTorrentTask(meta: TorrentMetadata, segmentCount?: number): string {
+    const rawUrl = meta.isMagnet
+      ? `magnet:?xt=urn:btih:${meta.infoHash}&dn=${encodeURIComponent(meta.name)}`
+      : `torrent://${meta.infoHash}`;
+    return this.addTask(
+      rawUrl,
+      meta.name,
+      segmentCount || this.defaultSegmentCount,
+      undefined,
+      undefined,
+      meta
+    );
   }
 
   private async startNativeDownload(task: DownloadTask) {

@@ -333,6 +333,33 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
 
+              {/* Browser Extension Card */}
+              <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-zinc-200 text-xs flex items-center gap-1.5">
+                    <span>⚡</span>
+                    <span>{isAr ? 'إضافة المتصفح (Chrome / Edge / Firefox)' : 'Browser Extension'}</span>
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-[#00e599] font-medium bg-[#00e599]/10 px-2 py-0.5 rounded-full border border-[#00e599]/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e599] animate-pulse" />
+                    <span>{isAr ? 'المنفذ 41523 نشط' : 'Port 41523 Active'}</span>
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  {isAr
+                    ? 'التقاط تنزيلات المتصفح تلقائياً أو عبر زر الفأرة الأيمن في جميع المتصفحات.'
+                    : 'Auto-intercept downloads and context-menu acceleration in all browsers.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => downloadManager.openBrowserExtensionDir()}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg border border-white/[0.08] hover:border-white/[0.2] bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white transition-colors text-xs font-mono font-medium"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-[#00e599]" />
+                  <span>{isAr ? 'فتح مجلد الإضافة للتثبيت' : 'Open Extension Folder'}</span>
+                </button>
+              </div>
+
               {/* Version Card */}
               <div className="p-3 rounded-xl bg-[#08090c] border border-white/[0.06] flex items-center justify-between">
                 <div>

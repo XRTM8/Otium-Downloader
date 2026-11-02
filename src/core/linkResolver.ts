@@ -3,6 +3,8 @@
  * Normalizes, resolves, and bypasses common download barriers (Google Drive, Dropbox, GitHub, etc.)
  */
 
+import { isMagnetUri } from './torrent';
+
 export interface ResolvedLink {
   resolvedUrl: string;
   originalUrl: string;
@@ -15,6 +17,16 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
   const trimmed = rawUrl.trim();
   if (!trimmed) {
     return { resolvedUrl: '', originalUrl: rawUrl };
+  }
+
+  // 0. Detect BitTorrent Magnet links immediately
+  if (isMagnetUri(trimmed)) {
+    return {
+      resolvedUrl: trimmed,
+      originalUrl: trimmed,
+      isSpecialHost: true,
+      serviceName: 'BitTorrent Magnet'
+    };
   }
 
   try {
@@ -135,6 +147,7 @@ export function resolveUniversalLink(rawUrl: string): ResolvedLink {
 export function isLikelyDownloadUrl(text: string): boolean {
   if (!text || typeof text !== 'string') return false;
   const trimmed = text.trim();
+  if (isMagnetUri(trimmed)) return true;
   if (!/^https?:\/\/.+/i.test(trimmed)) return false;
 
   // Obvious download extensions
@@ -142,7 +155,7 @@ export function isLikelyDownloadUrl(text: string): boolean {
     '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.zst',
     '.exe', '.msi', '.apk', '.dmg', '.pkg', '.deb', '.rpm', '.iso', '.bin',
     '.mp4', '.mkv', '.avi', '.mov', '.mp3', '.flac', '.wav',
-    '.pdf', '.epub', '.docx', '.xlsx'
+    '.pdf', '.epub', '.docx', '.xlsx', '.torrent'
   ];
 
   const lower = trimmed.toLowerCase();

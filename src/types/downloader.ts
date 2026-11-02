@@ -1,6 +1,8 @@
+import type { TorrentMetadata } from '../core/torrent';
+
 export type TaskStatus = 'queued' | 'downloading' | 'paused' | 'completed' | 'error';
 
-export type TaskCategory = 'programs' | 'media' | 'documents' | 'archives' | 'other';
+export type TaskCategory = 'programs' | 'media' | 'documents' | 'archives' | 'torrents' | 'other';
 
 export interface DownloadChunk {
   index: number;
@@ -34,6 +36,7 @@ export interface DownloadTask {
   savePath?: string;
   headers?: Record<string, string>;
   category?: TaskCategory;
+  torrentInfo?: TorrentMetadata;
 }
 
 export interface DownloadStats {
@@ -52,4 +55,5 @@ export interface AppSettings {
   enableSound: boolean;
   soundVolume?: number;
   defaultDirectory: string;
+  defaultSegmentCount?: number;
 }

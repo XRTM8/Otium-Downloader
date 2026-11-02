@@ -58,6 +58,7 @@ describe('linkResolver', () => {
   });
 
   it('detects likely download URLs accurately', () => {
+    expect(isLikelyDownloadUrl('magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335de7ec72523ad&dn=arch')).toBe(true);
     expect(isLikelyDownloadUrl('https://example.com/dist/setup.exe')).toBe(true);
     expect(isLikelyDownloadUrl('https://example.com/video.mp4')).toBe(true);
     expect(isLikelyDownloadUrl('https://drive.google.com/file/d/123/view')).toBe(true);

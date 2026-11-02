@@ -99,6 +99,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           border: 'border-emerald-500/20',
           text: 'text-emerald-400'
         };
+      case 'torrents':
+        return {
+          bg: 'bg-fuchsia-500/10',
+          border: 'border-fuchsia-500/20',
+          text: 'text-fuchsia-400'
+        };
       default:
         return {
           bg: 'bg-white/[0.04]',
@@ -181,6 +187,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               }`}>
                 {task.status === 'queued' ? (isAr ? 'في الانتظار' : 'Queued') : task.status.toUpperCase()}
               </span>
+
+              {task.torrentInfo && (
+                <>
+                  <span className="text-zinc-600">•</span>
+                  <span className="text-fuchsia-400 font-mono text-[10px]" title={`InfoHash: ${task.torrentInfo.infoHash}`}>
+                    BTIH: {task.torrentInfo.infoHash.slice(0, 8)}…
+                  </span>
+                </>
+              )}
 
               {task.status === 'downloading' && (
                 <>
@@ -338,7 +353,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Segment Breakdown Track (Only when segmented & downloading) */}
       {task.chunks && task.chunks.length > 1 && task.status === 'downloading' && (
-        <div className="grid grid-cols-8 gap-1 mt-2">
+        <div
+          className="grid gap-1 mt-2"
+          style={{ gridTemplateColumns: `repeat(${task.chunks.length}, minmax(0, 1fr))` }}
+        >
           {task.chunks.map((chunk) => {
             const span = chunk.endByte - chunk.startByte + 1;
             const pct = span > 0 ? Math.round((chunk.downloaded / span) * 100) : 0;

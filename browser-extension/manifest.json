@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Otium Downloader Integration",
+  "version": "1.2.0",
+  "description": "Lightning-fast download interception and context-menu accelerator for Otium Downloader.",
+  "author": "XRTM8",
+  "permissions": [
+    "contextMenus",
+    "downloads",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:41523/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Otium Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

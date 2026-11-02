@@ -8,7 +8,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
-use tokio::fs::OpenOptions;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::RwLock;
 
@@ -309,13 +308,17 @@ async fn prepare_download_file(
         }
     }
 
-    let file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
+    let mut std_opts = std::fs::OpenOptions::new();
+    std_opts.create(true).write(true).truncate(false);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        std_opts.share_mode(1 | 2 | 4);
+    }
+    let std_file = std_opts
         .open(clean_path)
-        .await
         .map_err(|e| format!("Failed to open or create file: {}", e))?;
+    let file = tokio::fs::File::from_std(std_file);
 
     if total_bytes > 0 {
         let _ = file.set_len(total_bytes).await;
@@ -392,13 +395,17 @@ async fn download_segment(
         let _ = tokio::fs::create_dir_all(parent).await;
     }
 
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
+    let mut std_opts = std::fs::OpenOptions::new();
+    std_opts.create(true).write(true).truncate(false);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        std_opts.share_mode(1 | 2 | 4);
+    }
+    let std_file = std_opts
         .open(&destination_path)
-        .await
         .map_err(|e| format!("Failed to open destination: {}", e))?;
+    let mut file = tokio::fs::File::from_std(std_file);
 
     let mut retries = 0;
     const MAX_RETRIES: u32 = 5;
@@ -619,6 +626,130 @@ async fn delete_file_item(file_path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserDownloadPayload {
+    pub url: String,
+    pub filename: Option<String>,
+    pub headers: Option<HashMap<String, String>>,
+}
+
+fn start_browser_bridge(app_handle: AppHandle) {
+    tokio::spawn(async move {
+        let addr = "127.0.0.1:41523";
+        let listener = match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => {
+                log::info!("Otium Browser Bridge listening on http://{}", addr);
+                l
+            }
+            Err(e) => {
+                log::warn!("Could not bind Browser Bridge port {}: {}", addr, e);
+                return;
+            }
+        };
+
+        loop {
+            let (mut socket, _) = match listener.accept().await {
+                Ok(conn) => conn,
+                Err(_) => continue,
+            };
+
+            let app = app_handle.clone();
+            tokio::spawn(async move {
+                use tokio::io::{AsyncReadExt, AsyncWriteExt};
+                let mut buf = vec![0u8; 8192];
+                let n = match socket.read(&mut buf).await {
+                    Ok(n) if n > 0 => n,
+                    _ => return,
+                };
+
+                let request = String::from_utf8_lossy(&buf[..n]);
+
+                // Handle CORS preflight
+                if request.starts_with("OPTIONS") {
+                    let response = "HTTP/1.1 204 No Content\r\n\
+                        Access-Control-Allow-Origin: *\r\n\
+                        Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n\
+                        Access-Control-Allow-Headers: Content-Type, Authorization\r\n\
+                        Access-Control-Max-Age: 86400\r\n\
+                        Content-Length: 0\r\n\r\n";
+                    let _ = socket.write_all(response.as_bytes()).await;
+                    return;
+                }
+
+                // Handle GET /ping or GET /status
+                if request.starts_with("GET /ping") || request.starts_with("GET /status") {
+                    let body = r#"{"status":"ok","app":"Otium Downloader","version":"1.2.0"}"#;
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\n\
+                        Access-Control-Allow-Origin: *\r\n\
+                        Content-Type: application/json\r\n\
+                        Content-Length: {}\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = socket.write_all(response.as_bytes()).await;
+                    return;
+                }
+
+                // Handle POST /add
+                if request.starts_with("POST /add") {
+                    if let Some(body_start) = request.find("\r\n\r\n") {
+                        let json_part = &request[body_start + 4..];
+                        if let Ok(payload) = serde_json::from_str::<BrowserDownloadPayload>(json_part.trim()) {
+                            let _ = app.emit("browser-add-download", payload);
+                            let body = r#"{"status":"accepted","message":"Download queued in Otium"}"#;
+                            let response = format!(
+                                "HTTP/1.1 200 OK\r\n\
+                                Access-Control-Allow-Origin: *\r\n\
+                                Content-Type: application/json\r\n\
+                                Content-Length: {}\r\n\r\n{}",
+                                body.len(),
+                                body
+                            );
+                            let _ = socket.write_all(response.as_bytes()).await;
+                            return;
+                        }
+                    }
+                    let body = r#"{"error":"invalid_json"}"#;
+                    let response = format!(
+                        "HTTP/1.1 400 Bad Request\r\n\
+                        Access-Control-Allow-Origin: *\r\n\
+                        Content-Type: application/json\r\n\
+                        Content-Length: {}\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = socket.write_all(response.as_bytes()).await;
+                    return;
+                }
+
+                // 404 for unknown endpoints
+                let body = r#"{"error":"not_found"}"#;
+                let response = format!(
+                    "HTTP/1.1 404 Not Found\r\n\
+                    Access-Control-Allow-Origin: *\r\n\
+                    Content-Type: application/json\r\n\
+                    Content-Length: {}\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = socket.write_all(response.as_bytes()).await;
+            });
+        }
+    });
+}
+
+#[tauri::command]
+async fn open_browser_extension_dir(app: AppHandle) -> Result<(), String> {
+    let current_dir = std::env::current_dir().map_err(|e| e.to_string())?;
+    let ext_dir = current_dir.join("browser-extension");
+    if ext_dir.exists() {
+        app.opener().open_path(ext_dir.to_string_lossy().to_string(), None::<&str>).map_err(|e| e.to_string())
+    } else {
+        Err("Browser extension folder not found".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let task_manager = Arc::new(TaskManager::default());
@@ -626,6 +757,10 @@ pub fn run() {
     tauri::Builder::default()
         .manage(task_manager)
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            start_browser_bridge(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             probe_url,
             set_global_speed_limit,
@@ -637,7 +772,8 @@ pub fn run() {
             verify_file_sha256,
             open_destination_folder,
             open_file_item,
-            delete_file_item
+            delete_file_item,
+            open_browser_extension_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running otium downloader application");
@@ -754,5 +890,16 @@ mod tests {
         tm.remove("t1").await;
         let map = tm.cancellations.read().await;
         assert!(!map.contains_key("t1"));
+    }
+
+    #[test]
+    fn test_browser_payload_deserialization() {
+        let json = r#"{"url":"https://example.com/app.exe","filename":"app.exe","headers":{"Referer":"https://example.com/"}}"#;
+        let payload: Result<BrowserDownloadPayload, _> = serde_json::from_str(json);
+        assert!(payload.is_ok());
+        let p = payload.unwrap();
+        assert_eq!(p.url, "https://example.com/app.exe");
+        assert_eq!(p.filename, Some("app.exe".to_string()));
+        assert_eq!(p.headers.unwrap().get("Referer").unwrap(), "https://example.com/");
     }
 }

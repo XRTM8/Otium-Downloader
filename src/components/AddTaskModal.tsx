@@ -14,6 +14,7 @@ import { OtiumLogo } from './OtiumLogo';
 import { extractFilename, formatBytes } from '../core/segmentation';
 import { resolveUniversalLink, isLikelyDownloadUrl } from '../core/linkResolver';
 import { downloadManager, type ProbeResult } from '../core/downloadManager';
+import { isMagnetUri, parseMagnetUri, parseTorrentFile, type TorrentMetadata } from '../core/torrent';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -51,7 +52,9 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isProbing, setIsProbing] = useState(false);
   const [probeData, setProbeData] = useState<ProbeResult | null>(null);
+  const [torrentMeta, setTorrentMeta] = useState<TorrentMetadata | null>(null);
   const probeTimeoutRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isAr = lang === 'ar';
 
@@ -65,6 +68,7 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
       setReferer('');
       setShowAdvanced(false);
       setProbeData(null);
+      setTorrentMeta(null);
       setIsProbing(false);
       setMode('single');
       return;
@@ -94,9 +98,26 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     setUrl(newUrl);
     setProbeData(null);
 
-    if (!newUrl.trim()) return;
+    const trimmed = newUrl.trim();
+    if (!trimmed) {
+      setTorrentMeta(null);
+      return;
+    }
 
-    const resolved = resolveUniversalLink(newUrl.trim());
+    // Magnet Link handling
+    if (isMagnetUri(trimmed)) {
+      const meta = parseMagnetUri(trimmed);
+      setTorrentMeta(meta);
+      if (meta?.name && (!filename || filename === extractFilename(trimmed))) {
+        setFilename(meta.name);
+      }
+      setIsProbing(false);
+      return;
+    } else {
+      setTorrentMeta(null);
+    }
+
+    const resolved = resolveUniversalLink(trimmed);
 
     if (!filename) {
       setFilename(extractFilename(resolved.resolvedUrl));
@@ -153,8 +174,31 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
     } catch {}
   };
 
+  const handleTorrentFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const meta = await parseTorrentFile(buffer);
+      setTorrentMeta(meta);
+      setUrl(`torrent://${meta.infoHash}`);
+      setFilename(meta.name);
+      if (meta.totalLength > 500 * 1024 * 1024) setSegments(16);
+      else if (meta.totalLength > 20 * 1024 * 1024) setSegments(8);
+      else setSegments(4);
+    } catch (err) {
+      console.warn('Failed to parse .torrent file:', err);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (torrentMeta) {
+      downloadManager.addTorrentTask(torrentMeta, segments);
+      onClose();
+      return;
+    }
 
     if (mode === 'batch') {
       const urls = batchText
@@ -255,20 +299,37 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
               {/* URL Input */}
               <div>
                 <div className="flex items-center justify-between mb-1.5 text-zinc-300">
-                  <label>{isAr ? 'رابط التنزيل' : 'Download URL'}</label>
-                  {isProbing && (
-                    <span className="text-[#00e599] text-[10px] animate-pulse">
-                      {isAr ? 'جاري فحص السيرفر...' : 'Probing remote headers...'}
-                    </span>
-                  )}
+                  <label>{isAr ? 'رابط التنزيل أو Magnet' : 'Download URL or Magnet'}</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[10px] text-fuchsia-400 hover:text-fuchsia-300 transition-colors flex items-center gap-1"
+                    >
+                      <span>🧲</span>
+                      <span>{isAr ? 'ملف .torrent' : '.torrent file'}</span>
+                    </button>
+                    {isProbing && (
+                      <span className="text-[#00e599] text-[10px] animate-pulse">
+                        {isAr ? 'جاري فحص السيرفر...' : 'Probing remote headers...'}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                <input
+                  type="file"
+                  accept=".torrent"
+                  ref={fileInputRef}
+                  onChange={handleTorrentFileUpload}
+                  className="hidden"
+                />
                 <div className="relative">
                   <input
-                    type="url"
+                    type="text"
                     required
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
-                    placeholder="https://example.com/file.zip"
+                    placeholder="https://... أو magnet:?xt=urn:btih:..."
                     className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
                   />
                   <button
@@ -280,6 +341,37 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                     <Clipboard className="w-3.5 h-3.5" />
                   </button>
                 </div>
+
+                {/* Torrent Metadata Card */}
+                {torrentMeta && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/25 text-xs space-y-1.5 animate-in-fade">
+                    <div className="flex items-center justify-between">
+                      <span className="text-fuchsia-400 font-semibold flex items-center gap-1.5">
+                        <span>🧲</span>
+                        <span>{isAr ? 'بيانات التورنت المعتمدة' : 'Verified Torrent Metadata'}</span>
+                      </span>
+                      <span className="text-zinc-200 font-mono text-[10px] font-bold">
+                        {torrentMeta.totalLength > 0 ? formatBytes(torrentMeta.totalLength) : 'Dynamic Swarm'}
+                      </span>
+                    </div>
+                    <div className="text-zinc-300 font-mono text-[11px] truncate">
+                      <strong>{isAr ? 'الاسم:' : 'Name:'}</strong> {torrentMeta.name}
+                    </div>
+                    <div className="text-zinc-400 font-mono text-[10px] truncate">
+                      <strong>BTIH:</strong> {torrentMeta.infoHash}
+                    </div>
+                    {torrentMeta.trackers.length > 0 && (
+                      <div className="text-zinc-400 text-[10px]">
+                        {isAr ? 'السيرفرات المتتبعة:' : 'Trackers:'} {torrentMeta.trackers.length}
+                      </div>
+                    )}
+                    {torrentMeta.files && torrentMeta.files.length > 1 && (
+                      <div className="text-zinc-400 text-[10px]">
+                        {isAr ? 'عدد الملفات:' : 'Files:'} {torrentMeta.files.length}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Probe Feedback Pill */}
                 {probeData && (
