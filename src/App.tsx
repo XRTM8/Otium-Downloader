@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, ArrowDownToLine, CheckCircle2, Smartphone } from 'lucide-react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
@@ -36,6 +36,8 @@ export function App() {
   const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [activeNavTab, setActiveNavTab] = useState<'all' | 'active' | 'completed'>('all');
+  const [detectedClipboardUrl, setDetectedClipboardUrl] = useState<string | null>(null);
 
   useEffect(() => {
     // Initial data fetch
@@ -153,6 +155,24 @@ export function App() {
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
 
+    // VRKA Smart Clipboard Link Sniffer
+    const checkClipboardForUrl = async () => {
+      try {
+        const text = await navigator.clipboard?.readText?.();
+        if (text && /^https?:\/\/.+/i.test(text.trim())) {
+          const trimmed = text.trim();
+          const current = downloadManager.getTasks();
+          const alreadyExists = current.some((t) => t.url === trimmed);
+          if (!alreadyExists) {
+            setDetectedClipboardUrl(trimmed);
+          }
+        }
+      } catch {}
+    };
+
+    checkClipboardForUrl();
+    window.addEventListener('focus', checkClipboardForUrl);
+
     // Background Autonomous Direct Update Check
     const updateTimer = setTimeout(() => {
       fetchReleaseInfo()
@@ -167,6 +187,7 @@ export function App() {
     return () => {
       unsubscribe();
       clearTimeout(updateTimer);
+      window.removeEventListener('focus', checkClipboardForUrl);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('paste', handleGlobalPaste);
       window.removeEventListener('dragover', handleDragOver);
@@ -335,10 +356,12 @@ export function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-28 sm:pb-12">
+      <main className="flex-1 max-w-5xl w-full mx-auto p-3.5 sm:p-6 pb-32 sm:pb-12">
         <TaskList
           tasks={tasks}
           lang={lang}
+          activeTab={activeNavTab}
+          onTabChange={setActiveNavTab}
           onPause={(id) => downloadManager.pauseTask(id)}
           onResume={(id) => downloadManager.resumeTask(id)}
           onStartImmediately={(id) => downloadManager.startTaskImmediately(id)}
@@ -355,18 +378,114 @@ export function App() {
         />
       </main>
 
-      {/* Mobile Floating Action Button (FAB) */}
-      <button
-        onClick={() => {
-          setInitialAddUrl(undefined);
-          setInitialBatchText(undefined);
-          setIsAddModalOpen(true);
-        }}
-        className="sm:hidden fixed bottom-6 end-5 z-40 w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-500 to-[#00e599] text-[#060709] flex items-center justify-center shadow-[0_8px_28px_rgba(0,229,153,0.35)] active:scale-90 transition-transform"
-        aria-label={lang === 'ar' ? 'تنزيل جديد' : 'New Download'}
-      >
-        <Plus className="w-6 h-6 stroke-[2.5]" />
-      </button>
+      {/* Floating Clipboard Sniffer Toast (VRKA Style) */}
+      {detectedClipboardUrl && (
+        <div className="fixed bottom-20 left-3 right-3 z-40 max-w-md mx-auto animate-in-slide-up">
+          <div className="bg-[#0f121a]/95 backdrop-blur-2xl border border-[#00e599]/40 rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-base shrink-0">📋</span>
+              <div className="min-w-0">
+                <span className="text-[10px] text-zinc-400 block font-medium">
+                  {lang === 'ar' ? 'رابط تم نسخه بالحافظة:' : 'Link detected in clipboard:'}
+                </span>
+                <span className="font-mono text-zinc-200 truncate block text-[11px] font-semibold">
+                  {detectedClipboardUrl}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => {
+                  handleAddTask(detectedClipboardUrl);
+                  setDetectedClipboardUrl(null);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-[#00e599] text-[#060709] font-bold text-xs shadow-[0_0_12px_rgba(0,229,153,0.35)] active:scale-95 transition-transform"
+              >
+                {lang === 'ar' ? 'تنزيل فوري ⚡' : 'Download ⚡'}
+              </button>
+              <button
+                onClick={() => setDetectedClipboardUrl(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VRKA Mobile Bottom Navigation Bar */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#07080a]/95 backdrop-blur-2xl border-t border-white/[0.06] pb-safe px-4 py-1.5">
+        <div className="flex items-center justify-around max-w-md mx-auto">
+          {/* Active Downloads Tab */}
+          <button
+            onClick={() => setActiveNavTab('active')}
+            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all relative ${
+              activeNavTab === 'active'
+                ? 'text-[#00e599]'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <div className="relative">
+              <ArrowDownToLine className="w-5 h-5" />
+              {stats.activeCount > 0 && (
+                <span className="absolute -top-1 -right-2 bg-[#00e599] text-[#060709] text-[9px] font-bold font-mono px-1 rounded-full animate-pulse">
+                  {stats.activeCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-medium tracking-tight">
+              {lang === 'ar' ? 'التنزيلات' : 'Active'}
+            </span>
+          </button>
+
+          {/* Central VRKA High-Action Add Button */}
+          <button
+            onClick={() => {
+              setInitialAddUrl(undefined);
+              setInitialBatchText(undefined);
+              setIsAddModalOpen(true);
+            }}
+            className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-[#00e599] text-[#060709] flex items-center justify-center shadow-[0_4px_20px_rgba(0,229,153,0.35)] active:scale-90 transition-transform -mt-5 border-2 border-[#07080a]"
+            aria-label={lang === 'ar' ? 'تنزيل جديد' : 'New Download'}
+          >
+            <Plus className="w-6 h-6 stroke-[2.5]" />
+          </button>
+
+          {/* Completed Library Tab */}
+          <button
+            onClick={() => setActiveNavTab('completed')}
+            className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all relative ${
+              activeNavTab === 'completed'
+                ? 'text-[#00e599]'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <div className="relative">
+              <CheckCircle2 className="w-5 h-5" />
+              {stats.completedCount > 0 && (
+                <span className="absolute -top-1 -right-2 bg-white/10 text-zinc-300 text-[9px] font-mono px-1 rounded-full">
+                  {stats.completedCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] font-medium tracking-tight">
+              {lang === 'ar' ? 'المكتملة' : 'Finished'}
+            </span>
+          </button>
+
+          {/* Remote Companion Tab */}
+          <button
+            onClick={() => setIsRemoteModalOpen(true)}
+            className="flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all text-zinc-400 hover:text-zinc-200"
+          >
+            <Smartphone className="w-5 h-5" />
+            <span className="text-[10px] font-medium tracking-tight">
+              {lang === 'ar' ? 'التحكم' : 'Remote'}
+            </span>
+          </button>
+        </div>
+      </nav>
 
       {/* Add Download Modal */}
       <AddTaskModal

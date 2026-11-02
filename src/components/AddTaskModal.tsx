@@ -326,22 +326,23 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
                   onChange={handleTorrentFileUpload}
                   className="hidden"
                 />
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     required
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="https://... أو magnet:?xt=urn:btih:..."
-                    className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
+                    className="w-full bg-[#08090c] border border-white/[0.08] focus:border-[#00e599]/60 rounded-xl pl-3.5 pr-20 rtl:pr-3.5 rtl:pl-20 py-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none transition-colors"
                   />
                   <button
                     type="button"
                     onClick={handlePasteClipboard}
-                    className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-200"
-                    title={isAr ? 'لصق من الحافظة' : 'Paste'}
+                    className="absolute right-2 rtl:right-auto rtl:left-2 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[#00e599] hover:bg-emerald-500/25 active:scale-95 transition-all text-[11px] font-semibold flex items-center gap-1"
+                    title={isAr ? 'لصق من الحافظة' : 'Paste from clipboard'}
                   >
-                    <Clipboard className="w-3.5 h-3.5" />
+                    <Clipboard className="w-3 h-3" />
+                    <span>{isAr ? 'لصق' : 'Paste'}</span>
                   </button>
                 </div>
 
@@ -543,24 +544,24 @@ export const AddTaskModal: React.FC<AddTaskModalProps> = ({
           )}
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.06]">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3.5 border-t border-white/[0.06]">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
+              className="px-4 py-2.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors text-center text-xs font-medium"
             >
               {isAr ? 'إلغاء' : 'Cancel'}
             </button>
             <button
               type="submit"
               disabled={mode === 'batch' && parsedBatchUrls.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold bg-[#00e599] text-[#060709] hover:bg-[#00e599]/90 disabled:opacity-40 active:scale-[0.98] transition-all shadow-[0_0_16px_rgba(0,229,153,0.18)]"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold bg-[#00e599] text-[#060709] hover:bg-[#00e599]/90 disabled:opacity-40 active:scale-[0.98] transition-all shadow-[0_0_20px_rgba(0,229,153,0.25)] text-xs"
             >
-              <ArrowDownToLine className="w-3.5 h-3.5" />
+              <ArrowDownToLine className="w-4 h-4 stroke-[2.5]" />
               <span>
                 {mode === 'batch'
-                  ? isAr ? `إضافة (${parsedBatchUrls.length})` : `Add (${parsedBatchUrls.length})`
-                  : isAr ? 'بدء التنزيل' : 'Start Download'}
+                  ? isAr ? `بدء تنزيل (${parsedBatchUrls.length}) ⚡` : `Start (${parsedBatchUrls.length}) ⚡`
+                  : isAr ? 'بدء التنزيل فائق السرعة ⚡' : 'Start Accelerated Download ⚡'}
               </span>
             </button>
           </div>

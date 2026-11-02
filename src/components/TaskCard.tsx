@@ -94,37 +94,37 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     switch (cat) {
       case 'programs':
         return {
-          bg: 'bg-sky-500/10',
-          border: 'border-sky-500/20',
+          bg: 'bg-sky-500/15',
+          border: 'border-sky-500/30',
           text: 'text-sky-400'
         };
       case 'media':
         return {
-          bg: 'bg-purple-500/10',
-          border: 'border-purple-500/20',
+          bg: 'bg-purple-500/15',
+          border: 'border-purple-500/30',
           text: 'text-purple-400'
         };
       case 'archives':
         return {
-          bg: 'bg-amber-500/10',
-          border: 'border-amber-500/20',
+          bg: 'bg-amber-500/15',
+          border: 'border-amber-500/30',
           text: 'text-amber-400'
         };
       case 'documents':
         return {
-          bg: 'bg-emerald-500/10',
-          border: 'border-emerald-500/20',
+          bg: 'bg-emerald-500/15',
+          border: 'border-emerald-500/30',
           text: 'text-emerald-400'
         };
       case 'torrents':
         return {
-          bg: 'bg-fuchsia-500/10',
-          border: 'border-fuchsia-500/20',
+          bg: 'bg-fuchsia-500/15',
+          border: 'border-fuchsia-500/30',
           text: 'text-fuchsia-400'
         };
       default:
         return {
-          bg: 'bg-white/[0.04]',
+          bg: 'bg-white/[0.05]',
           border: 'border-white/[0.08]',
           text: 'text-zinc-300'
         };
@@ -134,244 +134,108 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   const categoryTheme = getCategoryTheme(task.category);
 
   return (
-    <div className="bg-[#0d0f14]/90 hover:bg-[#0d0f14] border border-white/[0.05] hover:border-white/[0.12] rounded-2xl p-3.5 sm:p-4 transition-all duration-200 group hover:shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)]">
-      {/* Top Header Row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {selectionMode && (
-            <button
-              type="button"
-              onClick={() => onToggleSelect?.(task.id)}
-              className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-all shrink-0 ${
-                isSelected
-                  ? 'bg-[#00e599] border-[#00e599] text-[#08090c]'
-                  : 'border-white/[0.2] bg-white/[0.04] hover:border-white/[0.4]'
-              }`}
-            >
-              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-            </button>
-          )}
-
-          {/* File Extension Badge Icon */}
-          <div className="shrink-0">
-            {task.status === 'completed' ? (
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_8px_rgba(0,229,153,0.12)]">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-            ) : task.status === 'error' ? (
-              <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
-                <AlertCircle className="w-4 h-4" />
-              </div>
-            ) : task.status === 'queued' ? (
-              <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-400">
-                <Clock className="w-4 h-4" />
-              </div>
-            ) : (
-              <div className={`w-8 h-8 rounded-lg ${categoryTheme.bg} ${categoryTheme.border} border flex items-center justify-center shadow-sm`}>
-                <span className={`text-[10px] font-mono font-bold tracking-tight ${categoryTheme.text}`}>
-                  {cleanExt}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Title & Metadata */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-xs text-zinc-100 truncate" title={task.filename}>
-                {task.filename}
-              </h3>
-              {task.category && task.category !== 'other' && (
-                <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-zinc-400 border border-white/[0.06] shrink-0">
-                  {task.category}
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 mt-0.5 text-[11px] font-mono text-zinc-400">
-              <span>{formatBytes(task.downloadedBytes)} / {formatBytes(task.totalBytes)}</span>
-              <span className="text-zinc-600">•</span>
-              <span className={`font-medium ${
-                task.status === 'completed'
-                  ? 'text-[#00e599]'
-                  : task.status === 'paused'
-                  ? 'text-amber-400'
-                  : task.status === 'queued'
-                  ? 'text-zinc-400'
-                  : task.status === 'error'
-                  ? 'text-rose-400'
-                  : 'text-[#00e599]'
-              }`}>
-                {task.status === 'queued' ? (isAr ? 'في الانتظار' : 'Queued') : task.status.toUpperCase()}
-              </span>
-
-              {task.torrentInfo && (
-                <>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-fuchsia-400 font-mono text-[10px]" title={`InfoHash: ${task.torrentInfo.infoHash}`}>
-                    BTIH: {task.torrentInfo.infoHash.slice(0, 8)}…
-                  </span>
-                </>
-              )}
-
-              {task.status === 'downloading' && (
-                <>
-                  <span className="text-zinc-600">•</span>
-                  <span className="text-zinc-100 font-semibold">{formatSpeed(task.speedBytesPerSec)}</span>
-                  {task.etaSeconds > 0 && (
-                    <>
-                      <span className="text-zinc-600">•</span>
-                      <span className="text-zinc-400">{formatEta(task.etaSeconds)}</span>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-
-            {task.errorMessage && (
-              <div className="text-rose-400 text-[10px] font-mono mt-1 flex items-center gap-1 truncate" title={task.errorMessage}>
-                <AlertCircle className="w-3 h-3 shrink-0" />
-                <span className="truncate">{humanizeErrorMessage(task.errorMessage, lang)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Action Buttons Toolbar */}
-        <div className="flex items-center gap-1 shrink-0">
-          {task.status === 'queued' && onStartImmediately && (
-            <button
-              onClick={() => onStartImmediately(task.id)}
-              className="px-2.5 py-1 rounded-lg border border-white/[0.08] text-zinc-200 hover:text-white hover:bg-white/[0.06] text-xs font-mono font-medium transition-colors"
-            >
-              {isAr ? 'بدء الآن' : 'Start'}
-            </button>
-          )}
-
-          {task.status === 'downloading' && (
-            <button
-              onClick={() => onPause(task.id)}
-              className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-300 hover:text-amber-400 hover:bg-white/[0.04] transition-colors"
-              title={isAr ? 'إيقاف مؤقت' : 'Pause'}
-            >
-              <Pause className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {(task.status === 'paused' || task.status === 'error') && (
-            <button
-              onClick={() => onResume(task.id)}
-              className="p-1.5 rounded-lg border border-white/[0.06] text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
-              title={isAr ? 'استئناف' : 'Resume'}
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-            </button>
-          )}
-
-          {task.status === 'completed' && (
-            <>
-              <button
-                onClick={handleOpenFile}
-                className="p-1.5 rounded-lg border border-white/[0.06] text-[#00e599] hover:bg-[#00e599]/10 transition-colors"
-                title={isAr ? 'تشغيل / فتح الملف' : 'Open File'}
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={handleOpenFolder}
-                className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-white hover:bg-white/[0.04] transition-colors"
-                title={isAr ? 'عرض في المجلد' : 'Show in Folder'}
-              >
-                <FolderOpen className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
-
-          {(task.status === 'completed' || task.status === 'error') && onRestart && (
-            <button
-              onClick={() => onRestart(task.id)}
-              className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-[#00e599] hover:bg-white/[0.04] transition-colors"
-              title={isAr ? 'إعادة التنزيل' : 'Restart'}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
-
+    <div className="bg-[#0b0d13] border border-white/[0.06] hover:border-white/[0.12] rounded-2xl p-3.5 sm:p-4 transition-all duration-200 shadow-sm relative overflow-hidden">
+      {/* Top Row: Icon + Title + Selection */}
+      <div className="flex items-start gap-3">
+        {selectionMode && (
           <button
-            onClick={handleCopyLink}
-            className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] transition-colors"
-            title={isAr ? 'نسخ الرابط' : 'Copy URL'}
+            type="button"
+            onClick={() => onToggleSelect?.(task.id)}
+            className={`w-5 h-5 mt-1 rounded-lg border flex items-center justify-center cursor-pointer transition-all shrink-0 ${
+              isSelected
+                ? 'bg-[#00e599] border-[#00e599] text-[#07080a]'
+                : 'border-white/[0.2] bg-white/[0.04] hover:border-white/[0.4]'
+            }`}
           >
-            {copiedLink ? <Check className="w-3.5 h-3.5 text-[#00e599]" /> : <Copy className="w-3.5 h-3.5" />}
+            {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
           </button>
+        )}
 
-          {isConfirmingDelete ? (
-            <div className="flex items-center gap-1 animate-in-fade bg-[#141722] p-1 rounded-lg border border-rose-500/30">
-              <button
-                onClick={() => {
-                  onRemove(task.id, false);
-                  setIsConfirmingDelete(false);
-                }}
-                className="px-2 py-0.5 rounded text-[10px] font-mono text-zinc-300 hover:text-white bg-white/[0.06] hover:bg-white/[0.1] transition-colors"
-                title={isAr ? 'حذف من القائمة فقط' : 'Remove from list only'}
-              >
-                {isAr ? 'من القائمة' : 'List only'}
-              </button>
-              <button
-                onClick={() => {
-                  onRemove(task.id, true);
-                  setIsConfirmingDelete(false);
-                }}
-                className="px-2 py-0.5 rounded text-[10px] font-mono text-rose-400 hover:text-white bg-rose-500/20 hover:bg-rose-500/40 transition-colors"
-                title={isAr ? 'حذف الملف نهائياً من القرص' : 'Delete file permanently from disk'}
-              >
-                {isAr ? 'مع الملف' : 'With file'}
-              </button>
-              <button
-                onClick={() => setIsConfirmingDelete(false)}
-                className="p-1 rounded text-zinc-500 hover:text-zinc-300"
-              >
-                <X className="w-3 h-3" />
-              </button>
+        {/* File Type Badge Icon */}
+        <div className="shrink-0 mt-0.5">
+          {task.status === 'completed' ? (
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-[#00e599] shadow-[0_0_12px_rgba(0,229,153,0.15)]">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          ) : task.status === 'error' ? (
+            <div className="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-rose-400">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+          ) : task.status === 'queued' ? (
+            <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-400">
+              <Clock className="w-5 h-5" />
             </div>
           ) : (
-            <button
-              onClick={() => setIsConfirmingDelete(true)}
-              className="p-1.5 rounded-lg border border-white/[0.06] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-              title={isAr ? 'حذف' : 'Remove'}
+            <div className={`w-10 h-10 rounded-xl ${categoryTheme.bg} ${categoryTheme.border} border flex items-center justify-center shadow-sm`}>
+              <span className={`text-xs font-mono font-bold tracking-tight ${categoryTheme.text}`}>
+                {cleanExt}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Title & Metadata */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <h3
+              className="font-semibold text-xs sm:text-sm text-zinc-100 line-clamp-2 break-all leading-snug cursor-pointer hover:text-[#00e599] transition-colors"
+              onClick={task.status === 'completed' ? handleOpenFile : undefined}
+              title={task.filename}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+              {task.filename}
+            </h3>
+            {task.category && task.category !== 'other' && (
+              <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-white/[0.04] text-zinc-400 border border-white/[0.06] shrink-0">
+                {task.category}
+              </span>
+            )}
+          </div>
+
+          {/* Size & Progress Numbers */}
+          <div className="flex items-center gap-2 mt-1 text-[11px] font-mono text-zinc-400">
+            <span className="text-zinc-300 font-medium">{formatBytes(task.downloadedBytes)}</span>
+            <span className="text-zinc-600">/</span>
+            <span>{formatBytes(task.totalBytes)}</span>
+            {task.totalBytes > 0 && (
+              <span className="text-zinc-500 font-medium">({progressPercent}%)</span>
+            )}
+          </div>
+
+          {task.errorMessage && (
+            <div className="text-rose-400 text-[10px] font-mono mt-1 flex items-center gap-1 truncate" title={task.errorMessage}>
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              <span className="truncate">{humanizeErrorMessage(task.errorMessage, lang)}</span>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Progress Track */}
+      {/* Progress Bar (High Contrast OLED) */}
       <div className="mt-3">
-        <div className="w-full h-1.5 rounded-full bg-[#08090c] border border-white/[0.04] overflow-hidden relative">
+        <div className="w-full h-2 rounded-full bg-black/50 border border-white/[0.05] overflow-hidden relative">
           <div
-            className={`h-full transition-all duration-200 relative overflow-hidden ${
+            className={`h-full transition-all duration-200 relative overflow-hidden rounded-full ${
               task.status === 'completed'
                 ? 'bg-[#00e599]'
                 : task.status === 'paused'
                 ? 'bg-amber-400'
                 : task.status === 'queued'
                 ? 'bg-zinc-600'
-                : 'bg-[#00e599] shadow-[0_0_10px_rgba(0,229,153,0.35)]'
+                : 'bg-gradient-to-r from-emerald-500 to-[#00e599] shadow-[0_0_12px_rgba(0,229,153,0.35)]'
             }`}
             style={{ width: `${progressPercent}%` }}
           >
             {task.status === 'downloading' && (
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent animate-shimmer" />
             )}
           </div>
         </div>
       </div>
 
-      {/* Segment Breakdown Track (Only when segmented & downloading) */}
+      {/* Multi-Stream Segment Bars (While downloading) */}
       {task.chunks && task.chunks.length > 1 && task.status === 'downloading' && (
         <div
-          className="grid gap-1 mt-2"
+          className="grid gap-1 mt-1.5"
           style={{ gridTemplateColumns: `repeat(${task.chunks.length}, minmax(0, 1fr))` }}
         >
           {task.chunks.map((chunk) => {
@@ -380,7 +244,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             return (
               <div
                 key={chunk.index}
-                className="h-1 rounded-sm bg-[#08090c] border border-white/[0.04] overflow-hidden"
+                className="h-1 rounded-sm bg-black/40 overflow-hidden"
                 title={`Part ${chunk.index + 1}: ${pct}%`}
               >
                 <div
@@ -395,9 +259,168 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
       )}
 
+      {/* Bottom Info & Touch Action Bar */}
+      <div className="mt-3 pt-2 border-t border-white/[0.04] flex items-center justify-between gap-2">
+        {/* Status / Speed / ETA */}
+        <div className="flex items-center gap-2 text-[11px] font-mono min-w-0">
+          <span className={`font-semibold shrink-0 ${
+            task.status === 'completed'
+              ? 'text-[#00e599]'
+              : task.status === 'paused'
+              ? 'text-amber-400'
+              : task.status === 'queued'
+              ? 'text-zinc-400'
+              : task.status === 'error'
+              ? 'text-rose-400'
+              : 'text-[#00e599]'
+          }`}>
+            {task.status === 'completed'
+              ? (isAr ? 'مكتمل ✓' : 'Done ✓')
+              : task.status === 'paused'
+              ? (isAr ? 'متوقف' : 'Paused')
+              : task.status === 'queued'
+              ? (isAr ? 'في الانتظار' : 'Queued')
+              : task.status === 'error'
+              ? (isAr ? 'خطأ' : 'Error')
+              : (isAr ? 'جاري التنزيل' : 'Downloading')}
+          </span>
+
+          {task.status === 'downloading' && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span className="text-zinc-100 font-bold tabular-nums shrink-0">{formatSpeed(task.speedBytesPerSec)}</span>
+              {task.etaSeconds > 0 && (
+                <>
+                  <span className="text-zinc-600 hidden sm:inline">•</span>
+                  <span className="text-zinc-400 truncate hidden sm:inline">{formatEta(task.etaSeconds)}</span>
+                </>
+              )}
+            </>
+          )}
+
+          {task.torrentInfo && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span className="text-fuchsia-400 font-mono text-[10px] truncate" title={`InfoHash: ${task.torrentInfo.infoHash}`}>
+                BTIH: {task.torrentInfo.infoHash.slice(0, 6)}…
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Thumb Action Buttons (40px touch ergonomics) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {task.status === 'queued' && onStartImmediately && (
+            <button
+              onClick={() => onStartImmediately(task.id)}
+              className="px-3 py-1.5 rounded-xl bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-mono font-medium transition-all active:scale-95"
+            >
+              {isAr ? 'بدء الآن' : 'Start'}
+            </button>
+          )}
+
+          {task.status === 'downloading' && (
+            <button
+              onClick={() => onPause(task.id)}
+              className="w-8 h-8 sm:w-8 sm:h-8 rounded-xl bg-white/[0.05] hover:bg-amber-400/20 text-zinc-300 hover:text-amber-400 flex items-center justify-center transition-all active:scale-90"
+              title={isAr ? 'إيقاف مؤقت' : 'Pause'}
+            >
+              <Pause className="w-4 h-4" />
+            </button>
+          )}
+
+          {(task.status === 'paused' || task.status === 'error') && (
+            <button
+              onClick={() => onResume(task.id)}
+              className="w-8 h-8 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-[#00e599] flex items-center justify-center transition-all active:scale-90 shadow-sm"
+              title={isAr ? 'استئناف' : 'Resume'}
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5 rtl:mr-0.5 rtl:ml-0" />
+            </button>
+          )}
+
+          {task.status === 'completed' && (
+            <>
+              <button
+                onClick={handleOpenFile}
+                className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-[#00e599] font-semibold text-xs flex items-center gap-1.5 transition-all active:scale-95 shadow-[0_0_12px_rgba(0,229,153,0.15)]"
+                title={isAr ? 'تشغيل / فتح الملف' : 'Open File'}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>{isAr ? 'فتح' : 'Open'}</span>
+              </button>
+              <button
+                onClick={handleOpenFolder}
+                className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-white flex items-center justify-center transition-all active:scale-90"
+                title={isAr ? 'عرض في المجلد' : 'Show in Folder'}
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+
+          {(task.status === 'completed' || task.status === 'error') && onRestart && (
+            <button
+              onClick={() => onRestart(task.id)}
+              className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-[#00e599] flex items-center justify-center transition-all active:scale-90"
+              title={isAr ? 'إعادة التنزيل' : 'Restart'}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          <button
+            onClick={handleCopyLink}
+            className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 hover:text-zinc-200 flex items-center justify-center transition-all active:scale-90"
+            title={isAr ? 'نسخ الرابط' : 'Copy URL'}
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5 text-[#00e599]" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+
+          {isConfirmingDelete ? (
+            <div className="flex items-center gap-1 animate-in-fade bg-[#141722] p-1 rounded-xl border border-rose-500/30">
+              <button
+                onClick={() => {
+                  onRemove(task.id, false);
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-1 rounded-lg text-[10px] font-mono text-zinc-300 hover:text-white bg-white/[0.06] transition-colors"
+                title={isAr ? 'حذف من القائمة فقط' : 'Remove from list only'}
+              >
+                {isAr ? 'قائمة' : 'List'}
+              </button>
+              <button
+                onClick={() => {
+                  onRemove(task.id, true);
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-1 rounded-lg text-[10px] font-mono text-rose-400 hover:text-white bg-rose-500/20 transition-colors"
+                title={isAr ? 'حذف الملف نهائياً من القرص' : 'Delete file permanently from disk'}
+              >
+                {isAr ? 'ملف' : 'File'}
+              </button>
+              <button
+                onClick={() => setIsConfirmingDelete(false)}
+                className="p-1 rounded-lg text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsConfirmingDelete(true)}
+              className="w-8 h-8 rounded-xl bg-white/[0.04] hover:bg-rose-500/20 text-zinc-400 hover:text-rose-400 flex items-center justify-center transition-all active:scale-90"
+              title={isAr ? 'حذف' : 'Remove'}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Checksum Status (Completed Tasks) */}
       {task.status === 'completed' && (
-        <div className="mt-2.5 pt-2 border-t border-white/[0.04] flex items-center justify-between text-[11px] font-mono text-zinc-400">
+        <div className="mt-2 pt-2 border-t border-white/[0.04] flex items-center justify-between text-[11px] font-mono text-zinc-400">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-zinc-400" />
             {task.checksum?.verified ? (
@@ -406,8 +429,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 <span>{isAr ? 'تم التحقق من مطابقة SHA-256 بنجاح ✓' : 'SHA-256 Verified ✓'}</span>
               </span>
             ) : task.checksum?.actual ? (
-              <span className="text-zinc-400 font-mono text-[10px]">
-                SHA-256: {task.checksum.actual.slice(0, 16)}...
+              <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[200px]">
+                SHA-256: {task.checksum.actual.slice(0, 12)}...
               </span>
             ) : (
               <span className="text-zinc-500">
@@ -435,8 +458,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
             <span>
               {isAr
-                ? 'تحذير أمان: هذا ملف تنفيذي (.exe / برنامج). تشغيل ملفات البرامج المحملة من الإنترنت قد يضر بنظامك.'
-                : 'Security Warning: Executable binary detected. Launching downloaded programs may pose a security risk.'}
+                ? 'تحذير: هذا ملف برنامج تنفيذي. هل تود المتابعة؟'
+                : 'Security Warning: Executable binary detected. Continue?'}
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
@@ -453,17 +476,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             <button
               type="button"
               onClick={confirmRunExecutable}
-              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold transition-colors text-[11px]"
+              className="px-3 py-1 rounded-lg bg-amber-500 text-[#07080a] font-bold transition-all active:scale-95 text-[11px]"
             >
               {isAr ? 'تشغيل على مسؤوليتي' : 'Run Anyway'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowExecWarning(false)}
-              className="p-1 rounded text-zinc-400 hover:text-white"
-              title={isAr ? 'إلغاء' : 'Cancel'}
-            >
-              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

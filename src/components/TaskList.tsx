@@ -19,6 +19,8 @@ import { TaskCard } from './TaskCard';
 interface TaskListProps {
   tasks: DownloadTask[];
   lang: 'ar' | 'en';
+  activeTab?: 'all' | 'active' | 'completed';
+  onTabChange?: (tab: 'all' | 'active' | 'completed') => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onRemove: (id: string, deleteFileFromDisk?: boolean) => void;
@@ -33,6 +35,8 @@ interface TaskListProps {
 export const TaskList: React.FC<TaskListProps> = ({
   tasks,
   lang,
+  activeTab,
+  onTabChange,
   onPause,
   onResume,
   onRemove,
@@ -43,7 +47,12 @@ export const TaskList: React.FC<TaskListProps> = ({
   onPauseAll,
   onResumeAll
 }) => {
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [internalStatusFilter, setInternalStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const statusFilter = activeTab !== undefined ? activeTab : internalStatusFilter;
+  const setStatusFilter = (tab: 'all' | 'active' | 'completed') => {
+    if (onTabChange) onTabChange(tab);
+    else setInternalStatusFilter(tab);
+  };
   const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedExport, setCopiedExport] = useState(false);
@@ -355,32 +364,42 @@ export const TaskList: React.FC<TaskListProps> = ({
 
       {/* Task Cards Container */}
       {filteredTasks.length === 0 ? (
-        <div className="text-center py-16 px-4 border border-white/[0.04] rounded-2xl bg-[#0d0f14]/40 backdrop-blur-sm animate-in-fade relative overflow-hidden">
+        <div className="text-center py-16 px-4 border border-white/[0.04] rounded-2xl bg-[#0b0d13]/60 backdrop-blur-sm animate-in-fade relative overflow-hidden">
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3.5 text-[#00e599] shadow-[0_0_20px_rgba(0,229,153,0.12)]">
             <OtiumLogo className="w-6 h-6" glow />
           </div>
-          <h4 className="text-sm font-semibold text-zinc-200 mb-1">
+          <h4 className="text-sm font-semibold text-zinc-100 mb-1">
             {searchQuery
               ? isAr ? 'لا توجد نتائج مطابقة لبحثك' : 'No matching downloads'
-              : isAr ? 'لا توجد تنزيلات حالياً' : 'No downloads in this view'}
+              : statusFilter === 'completed'
+              ? isAr ? 'لا توجد تنزيلات مكتملة حتى الآن' : 'No finished downloads yet'
+              : isAr ? 'لا توجد تنزيلات نشطة حالياً' : 'No active downloads'}
           </h4>
           <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4 font-normal">
             {searchQuery ? (
               isAr ? 'جرّب كلمة مفتاحية أخرى أو امسح شريط البحث' : 'Try searching for something else or clear query'
             ) : (
               <>
-                <span className="sm:hidden">{isAr ? 'اضغط على زر + في الأسفل أو انسخ رابطاً للبدء' : 'Tap + below or copy a link to start'}</span>
-                <span className="hidden sm:inline">{isAr ? 'أفلت رابطاً هنا للتنزيل، أو اضغط ⌘N للبدء' : 'Drop a URL here or press ⌘N to start'}</span>
+                <span className="sm:hidden">
+                  {statusFilter === 'completed'
+                    ? isAr ? 'ستظهر هنا جميع الملفات التي تكتمل لتشغيلها بلمسة واحدة' : 'Completed downloads will appear here for 1-tap playback'
+                    : isAr ? 'انسخ أي رابط وافتح التطبيق للتنزيل الفوري، أو اضغط +' : 'Copy any link and switch back to download, or tap +'}
+                </span>
+                <span className="hidden sm:inline">
+                  {statusFilter === 'completed'
+                    ? isAr ? 'الملفات المكتملة تظهر هنا لإدارتها وتشغيلها فوراً' : 'Completed files will be listed here'
+                    : isAr ? 'أفلت رابطاً هنا للتنزيل، أو اضغط ⌘N للبدء' : 'Drop a URL here or press ⌘N to start'}
+                </span>
               </>
             )}
           </p>
-          {!searchQuery && (
+          {!searchQuery && statusFilter !== 'completed' && (
             <button
               onClick={onOpenAddModal}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/15 border border-emerald-500/25 text-[#00e599] hover:bg-emerald-500/25 active:scale-[0.98] transition-all shadow-[0_0_12px_rgba(0,229,153,0.1)]"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#00e599]/15 border border-[#00e599]/30 text-[#00e599] hover:bg-[#00e599]/25 active:scale-95 transition-all shadow-[0_0_12px_rgba(0,229,153,0.1)]"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{isAr ? 'إضافة تنزيل' : 'New Download'}</span>
+              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>{isAr ? 'تنزيل جديد' : 'New Download'}</span>
             </button>
           )}
         </div>
