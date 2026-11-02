@@ -678,7 +678,7 @@ fn start_browser_bridge(app_handle: AppHandle) {
 
                 // Handle GET /ping or GET /status
                 if request.starts_with("GET /ping") || request.starts_with("GET /status") {
-                    let body = r#"{"status":"ok","app":"Otium Downloader","version":"1.2.0"}"#;
+                    let body = r#"{"status":"ok","app":"Otium Downloader","version":"1.3.0"}"#;
                     let response = format!(
                         "HTTP/1.1 200 OK\r\n\
                         Access-Control-Allow-Origin: *\r\n\
