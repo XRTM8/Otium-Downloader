@@ -32,7 +32,7 @@ interface HeaderProps {
   onOpenAddModal: () => void;
 }
 
-const CURRENT_VERSION = '1.3.1';
+const CURRENT_VERSION = '1.4.0';
 
 export const Header: React.FC<HeaderProps> = ({
   stats,
@@ -128,6 +128,20 @@ export const Header: React.FC<HeaderProps> = ({
     setNightStartHour(start);
     setNightEndHour(end);
     downloadManager.updateSettings({ nightSchedulerStartHour: start, nightSchedulerEndHour: end });
+  };
+
+  const handleAutoUpdate = (version: string) => {
+    const installerUrl = `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
+    const filename = `Otium_Downloader_${version}_x64-setup.exe`;
+    const taskId = downloadManager.addTask(installerUrl, filename, 16);
+    const unsub = downloadManager.subscribe(() => {
+      const task = downloadManager.getTasks().find((t) => t.id === taskId);
+      if (task && task.status === 'completed') {
+        unsub();
+        downloadManager.openFile(task.savePath);
+      }
+    });
+    setSettingsOpen(false);
   };
 
   return (
@@ -531,14 +545,22 @@ export const Header: React.FC<HeaderProps> = ({
                         <ShieldAlert className="w-3.5 h-3.5" />
                         <span>v{updateInfo.version} {isAr ? 'متاح للتحميل' : 'Available'}</span>
                       </span>
-                      <a
-                        href="https://github.com/XRTM8/Otium-Downloader/releases/latest"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[#00e599] underline font-bold"
-                      >
-                        {isAr ? 'تنزيل' : 'Get'}
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAutoUpdate(updateInfo.version!)}
+                          className="px-2 py-0.5 rounded bg-[#00e599] hover:bg-[#00e599]/90 text-[#08090c] font-bold text-[11px] transition-transform active:scale-95 shadow-sm"
+                        >
+                          {isAr ? 'تحديث تلقائي ⚡' : 'Auto-Update ⚡'}
+                        </button>
+                        <a
+                          href="https://github.com/XRTM8/Otium-Downloader/releases/latest"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-zinc-400 hover:text-white underline text-[11px]"
+                        >
+                          {isAr ? 'ملاحظات' : 'Notes'}
+                        </a>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 text-[#00e599]">

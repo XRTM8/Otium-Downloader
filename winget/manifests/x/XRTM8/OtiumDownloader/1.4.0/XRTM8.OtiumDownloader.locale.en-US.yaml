@@ -1,0 +1,20 @@
+PackageIdentifier: XRTM8.OtiumDownloader
+PackageVersion: 1.4.0
+PackageLocale: en-US
+Publisher: XRTM8
+PublisherUrl: https://github.com/XRTM8
+PublisherSupportUrl: https://github.com/XRTM8/Otium-Downloader/issues
+PackageName: Otium Downloader
+PackageUrl: https://github.com/XRTM8/Otium-Downloader
+License: MIT
+LicenseUrl: https://github.com/XRTM8/Otium-Downloader/blob/main/LICENSE
+ShortDescription: Sovereign download manager with phone-to-PC remote control and multi-stream acceleration.
+Description: Otium Downloader v1.4.0 is a high-performance sovereign desktop and mobile download manager built with Rust and React. It features multi-segment parallel HTTP acceleration, Torrent/Magnet streaming, YouTube/media detection, Phone-to-PC Remote Control over local Wi-Fi, Smart Night Scheduling, and zero telemetry.
+Tags:
+  - download-manager
+  - accelerator
+  - torrent
+  - multi-stream
+  - remote-control
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

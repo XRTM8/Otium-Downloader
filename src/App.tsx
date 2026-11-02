@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { Header } from './components/Header';
 import { TaskList } from './components/TaskList';
 import { AddTaskModal } from './components/AddTaskModal';
@@ -7,6 +8,7 @@ import { RemoteControlModal } from './components/RemoteControlModal';
 import { OtiumLogo } from './components/OtiumLogo';
 import { downloadManager } from './core/downloadManager';
 import { resolveUniversalLink } from './core/linkResolver';
+import { fetchReleaseInfo, isNewerVersion, type ReleaseInfo } from './core/updates/releaseFeed';
 import type { DownloadTask, DownloadStats } from './types/downloader';
 
 export function App() {
@@ -24,6 +26,7 @@ export function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isRemoteModalOpen, setIsRemoteModalOpen] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<ReleaseInfo | null>(null);
   const [initialAddUrl, setInitialAddUrl] = useState<string | undefined>(undefined);
   const [initialBatchText, setInitialBatchText] = useState<string | undefined>(undefined);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
@@ -145,8 +148,20 @@ export function App() {
     window.addEventListener('dragleave', handleDragLeave);
     window.addEventListener('drop', handleDrop);
 
+    // Background Automatic Update Check
+    const updateTimer = setTimeout(() => {
+      fetchReleaseInfo()
+        .then((info) => {
+          if (info && isNewerVersion(info.version, '1.4.0')) {
+            setAvailableUpdate(info);
+          }
+        })
+        .catch(() => {});
+    }, 1500);
+
     return () => {
       unsubscribe();
+      clearTimeout(updateTimer);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('paste', handleGlobalPaste);
       window.removeEventListener('dragover', handleDragOver);
@@ -188,6 +203,27 @@ export function App() {
     downloadManager.addBatchTasks(resolvedUrls, segmentCount);
   };
 
+  const handlePerformAutoUpdate = () => {
+    if (!availableUpdate) return;
+    const version = availableUpdate.version;
+    const installerUrl =
+      availableUpdate.assets?.windowsInstaller?.url ||
+      `https://github.com/XRTM8/Otium-Downloader/releases/download/v${version}/Otium_Downloader_${version}_x64-setup.exe`;
+    const filename = `Otium_Downloader_${version}_x64-setup.exe`;
+
+    const taskId = downloadManager.addTask(installerUrl, filename, 16);
+
+    const unsub = downloadManager.subscribe(() => {
+      const task = downloadManager.getTasks().find((t) => t.id === taskId);
+      if (task && task.status === 'completed') {
+        unsub();
+        downloadManager.openFile(task.savePath);
+      }
+    });
+
+    setAvailableUpdate(null);
+  };
+
   return (
     <div className="min-h-screen bg-[#08090c] text-zinc-100 flex flex-col selection:bg-[#00e599]/30 selection:text-[#00e599] relative">
       {/* Drag & Drop Visual Overlay */}
@@ -223,6 +259,46 @@ export function App() {
           setIsAddModalOpen(true);
         }}
       />
+
+      {/* In-App Automatic Update Banner */}
+      {availableUpdate && (
+        <div className="max-w-5xl w-full mx-auto px-4 sm:px-6 pt-3 animate-in-fade">
+          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/50 via-emerald-900/25 to-[#08090c] border border-[#00e599]/30 flex items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00e599]" />
+              </span>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 truncate">
+                <span className="text-xs font-bold text-[#00e599] font-mono">
+                  v{availableUpdate.version} {lang === 'ar' ? 'متوفر الآن!' : 'Available Now!'}
+                </span>
+                <span className="text-[11px] text-zinc-400 truncate">
+                  {lang === 'ar'
+                    ? 'تحديث جديد يتضمن التحكم عن بُعد من الهاتف ورادار الوسائط'
+                    : 'New release with Phone Remote Link & Media Sniffer'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={handlePerformAutoUpdate}
+                className="px-3 py-1.5 rounded-lg bg-[#00e599] hover:bg-[#00e599]/90 text-[#08090c] font-bold text-xs transition-transform active:scale-95 shadow-sm flex items-center gap-1"
+              >
+                <span>⚡</span>
+                <span>{lang === 'ar' ? 'تحديث وتثبيت تلقائي' : 'Auto-Update'}</span>
+              </button>
+              <button
+                onClick={() => setAvailableUpdate(null)}
+                className="p-1 text-zinc-400 hover:text-white rounded-lg hover:bg-white/[0.04]"
+                title={lang === 'ar' ? 'إغلاق' : 'Dismiss'}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 pb-12">
