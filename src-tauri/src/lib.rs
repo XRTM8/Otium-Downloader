@@ -633,8 +633,9 @@ pub struct BrowserDownloadPayload {
     pub headers: Option<HashMap<String, String>>,
 }
 
+#[cfg(desktop)]
 fn start_browser_bridge(app_handle: AppHandle) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let addr = "127.0.0.1:41523";
         let listener = match tokio::net::TcpListener::bind(addr).await {
             Ok(l) => {
@@ -654,7 +655,7 @@ fn start_browser_bridge(app_handle: AppHandle) {
             };
 
             let app = app_handle.clone();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 use tokio::io::{AsyncReadExt, AsyncWriteExt};
                 let mut buf = vec![0u8; 8192];
                 let n = match socket.read(&mut buf).await {
@@ -757,8 +758,9 @@ pub fn run() {
     tauri::Builder::default()
         .manage(task_manager)
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
-            start_browser_bridge(app.handle().clone());
+        .setup(|_app| {
+            #[cfg(desktop)]
+            start_browser_bridge(_app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
