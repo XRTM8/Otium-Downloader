@@ -220,7 +220,23 @@ async fn probe_url(
 
     let response = match head_req.send().await {
         Ok(res) if res.status().is_success() => res,
-        _ => get_req.send().await.map_err(|e| e.to_string())?,
+        _ => match get_req.send().await {
+            Ok(res) if res.status().is_success() => res,
+            _ => {
+                let mut fallback_get = client.get(trimmed_url);
+                if let Some(ref map) = custom_headers {
+                    for (k, v) in map {
+                        if let (Ok(hname), Ok(hval)) = (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()),
+                            reqwest::header::HeaderValue::from_str(v),
+                        ) {
+                            fallback_get = fallback_get.header(hname, hval);
+                        }
+                    }
+                }
+                fallback_get.send().await.map_err(|e| e.to_string())?
+            }
+        },
     };
 
     let final_url = response.url().clone();
@@ -279,28 +295,80 @@ async fn set_global_speed_limit(
     Ok(())
 }
 
+pub fn get_resolved_download_dir(app: &AppHandle) -> std::path::PathBuf {
+    #[cfg(target_os = "android")]
+    {
+        let candidates = [
+            std::path::PathBuf::from("/storage/emulated/0/Download"),
+            std::path::PathBuf::from("/sdcard/Download"),
+            std::path::PathBuf::from("/storage/emulated/0/Android/data/com.otium.downloader/files/Download"),
+        ];
+
+        for dir in &candidates {
+            if dir.exists() || std::fs::create_dir_all(dir).is_ok() {
+                let test_probe = dir.join(".otium_write_probe");
+                if std::fs::write(&test_probe, b"ok").is_ok() {
+                    let _ = std::fs::remove_file(&test_probe);
+                    return dir.clone();
+                }
+            }
+        }
+
+        if let Ok(dir) = app.path().app_local_data_dir() {
+            let sub = dir.join("Download");
+            let _ = std::fs::create_dir_all(&sub);
+            return sub;
+        }
+
+        if let Ok(dir) = app.path().app_cache_dir() {
+            let sub = dir.join("Download");
+            let _ = std::fs::create_dir_all(&sub);
+            return sub;
+        }
+    }
+
+    if let Ok(p) = app.path().download_dir() {
+        return p;
+    }
+    if let Ok(p) = app.path().document_dir() {
+        return p;
+    }
+    if let Ok(p) = app.path().app_local_data_dir() {
+        return p;
+    }
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+pub fn resolve_destination_path(app: &AppHandle, dest: &str) -> std::path::PathBuf {
+    let clean = dest.trim();
+    if clean.is_empty() {
+        let base = get_resolved_download_dir(app);
+        return base.join("download.bin");
+    }
+    let p = Path::new(clean);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        let base = get_resolved_download_dir(app);
+        base.join(clean)
+    }
+}
+
 #[tauri::command]
 async fn get_default_download_directory(app: AppHandle) -> Result<String, String> {
-    let path = app.path().download_dir().map_err(|e| e.to_string())?;
+    let path = get_resolved_download_dir(&app);
+    let _ = tokio::fs::create_dir_all(&path).await;
     Ok(path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 async fn prepare_download_file(
+    app: AppHandle,
     destination_path: String,
     total_bytes: u64,
-) -> Result<(), String> {
-    let clean_path = destination_path.trim();
-    if clean_path.is_empty() {
-        return Err("Destination path cannot be empty".to_string());
-    }
-
-    let path = Path::new(clean_path);
-    if path.is_dir() {
-        return Err("Destination path points to an existing directory, expected file".to_string());
-    }
-
-    if let Some(parent) = path.parent() {
+) -> Result<String, String> {
+    let target = resolve_destination_path(&app, &destination_path);
+    if let Some(parent) = target.parent() {
         if !parent.as_os_str().is_empty() {
             tokio::fs::create_dir_all(parent)
                 .await
@@ -316,7 +384,7 @@ async fn prepare_download_file(
         std_opts.share_mode(1 | 2 | 4);
     }
     let std_file = std_opts
-        .open(clean_path)
+        .open(&target)
         .map_err(|e| format!("Failed to open or create file: {}", e))?;
     let file = tokio::fs::File::from_std(std_file);
 
@@ -324,7 +392,7 @@ async fn prepare_download_file(
         let _ = file.set_len(total_bytes).await;
     }
 
-    Ok(())
+    Ok(target.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -359,10 +427,23 @@ async fn download_segment(
     custom_headers: Option<HashMap<String, String>>,
 ) -> Result<(), String> {
     let token = state.get_or_create_token(&task_id).await;
-    let total_segment_bytes = end_byte.saturating_sub(start_byte) + 1;
+    let target_path = resolve_destination_path(&app, &destination_path);
+
+    if let Some(parent) = target_path.parent() {
+        let _ = tokio::fs::create_dir_all(parent).await;
+    }
+
+    let is_open_stream = (start_byte == 0 && end_byte == 0) || end_byte <= start_byte;
+    let total_segment_bytes = if is_open_stream {
+        0
+    } else {
+        end_byte.saturating_sub(start_byte) + 1
+    };
+
     let mut downloaded = current_downloaded;
 
-    if start_byte + downloaded > end_byte {
+    // If bounded and already completely downloaded
+    if !is_open_stream && total_segment_bytes > 0 && downloaded >= total_segment_bytes {
         let _ = app.emit(
             "download-progress",
             SegmentProgressEvent {
@@ -390,11 +471,6 @@ async fn download_segment(
         .build()
         .map_err(|e| e.to_string())?;
 
-    let path = Path::new(&destination_path);
-    if let Some(parent) = path.parent() {
-        let _ = tokio::fs::create_dir_all(parent).await;
-    }
-
     let mut std_opts = std::fs::OpenOptions::new();
     std_opts.create(true).write(true).truncate(false);
     #[cfg(windows)]
@@ -403,26 +479,33 @@ async fn download_segment(
         std_opts.share_mode(1 | 2 | 4);
     }
     let std_file = std_opts
-        .open(&destination_path)
+        .open(&target_path)
         .map_err(|e| format!("Failed to open destination: {}", e))?;
     let mut file = tokio::fs::File::from_std(std_file);
 
     let mut retries = 0;
     const MAX_RETRIES: u32 = 5;
-
     let mut last_emit = std::time::Instant::now();
     let mut last_emitted_downloaded = downloaded;
+    let mut known_total_bytes = total_segment_bytes;
 
-    while downloaded < total_segment_bytes {
+    while is_open_stream || downloaded < total_segment_bytes {
         if token.load(Ordering::Relaxed) {
             let _ = file.flush().await;
             return Ok(());
         }
 
         let actual_start = start_byte + downloaded;
-        let range_header = format!("bytes={}-{}", actual_start, end_byte);
+        let mut req = client.get(&url);
 
-        let mut req = client.get(&url).header(reqwest::header::RANGE, &range_header);
+        if !is_open_stream {
+            let range_header = format!("bytes={}-{}", actual_start, end_byte);
+            req = req.header(reqwest::header::RANGE, range_header);
+        } else if downloaded > 0 {
+            let range_header = format!("bytes={}-", downloaded);
+            req = req.header(reqwest::header::RANGE, range_header);
+        }
+
         if let Some(ref map) = custom_headers {
             for (k, v) in map {
                 if let (Ok(hname), Ok(hval)) = (
@@ -451,22 +534,36 @@ async fn download_segment(
 
         let status = response.status();
         if !status.is_success() {
+            // If segment > 0 returns 416 (file smaller than chunk count), it's completed
+            if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE && segment_index > 0 {
+                return Ok(());
+            }
             return Err(format!("Server returned HTTP {}", status));
         }
 
-        if status == reqwest::StatusCode::OK {
-            if actual_start > 0 {
-                return Err("Server does not support byte ranges (returned HTTP 200 instead of 206)".to_string());
+        // If server returns 200 OK (no range support or full file returned)
+        let is_status_200 = status == reqwest::StatusCode::OK;
+        if is_status_200 {
+            if segment_index > 0 {
+                // Segment 0 will download the full body, secondary segments simply exit cleanly
+                return Ok(());
             }
+            // Segment 0: seek to 0 and stream entire file
+            let _ = file.seek(SeekFrom::Start(0)).await;
+            downloaded = 0;
             if let Some(cl) = response.content_length() {
-                if cl > total_segment_bytes {
-                    return Err("Server does not support byte ranges (returned full body 200 for sub-range)".to_string());
+                known_total_bytes = cl;
+            }
+        } else {
+            // Seek to resume offset
+            if let Err(e) = file.seek(SeekFrom::Start(actual_start)).await {
+                return Err(format!("Failed to seek offset: {}", e));
+            }
+            if known_total_bytes == 0 {
+                if let Some(cl) = response.content_length() {
+                    known_total_bytes = downloaded + cl;
                 }
             }
-        }
-
-        if let Err(e) = file.seek(SeekFrom::Start(actual_start)).await {
-            return Err(format!("Failed to seek offset: {}", e));
         }
 
         let mut stream = response.bytes_stream();
@@ -491,13 +588,16 @@ async fn download_segment(
 
             match chunk_result {
                 Ok(chunk) => {
-                    let remaining = total_segment_bytes.saturating_sub(downloaded);
-                    if remaining == 0 {
-                        break;
-                    }
-
                     let chunk_len = chunk.len() as u64;
-                    let bytes_to_write = (chunk_len.min(remaining)) as usize;
+                    let bytes_to_write = if !is_open_stream && !is_status_200 {
+                        let remaining = total_segment_bytes.saturating_sub(downloaded);
+                        if remaining == 0 {
+                            break;
+                        }
+                        (chunk_len.min(remaining)) as usize
+                    } else {
+                        chunk_len as usize
+                    };
 
                     if bytes_to_write > 0 {
                         if let Err(e) = file.write_all(&chunk[..bytes_to_write]).await {
@@ -521,6 +621,14 @@ async fn download_segment(
                         last_emitted_downloaded = downloaded;
                         last_emit = std::time::Instant::now();
 
+                        let emit_total = if known_total_bytes > 0 {
+                            known_total_bytes
+                        } else if total_segment_bytes > 0 {
+                            total_segment_bytes
+                        } else {
+                            downloaded
+                        };
+
                         let _ = app.emit(
                             "download-progress",
                             SegmentProgressEvent {
@@ -528,13 +636,13 @@ async fn download_segment(
                                 segment_index,
                                 delta_bytes: delta,
                                 downloaded_bytes: downloaded,
-                                total_bytes: total_segment_bytes,
+                                total_bytes: emit_total,
                                 is_finished: false,
                             },
                         );
                     }
 
-                    if downloaded >= total_segment_bytes {
+                    if !is_open_stream && !is_status_200 && downloaded >= total_segment_bytes {
                         break;
                     }
                 }
@@ -561,8 +669,14 @@ async fn download_segment(
         break;
     }
 
-    let is_done = downloaded >= total_segment_bytes;
     let final_delta = downloaded.saturating_sub(last_emitted_downloaded);
+    let final_total = if known_total_bytes > 0 {
+        known_total_bytes
+    } else if total_segment_bytes > 0 {
+        total_segment_bytes
+    } else {
+        downloaded
+    };
 
     let _ = app.emit(
         "download-progress",
@@ -571,8 +685,8 @@ async fn download_segment(
             segment_index,
             delta_bytes: final_delta,
             downloaded_bytes: downloaded,
-            total_bytes: total_segment_bytes,
-            is_finished: is_done,
+            total_bytes: final_total,
+            is_finished: true,
         },
     );
 
@@ -580,13 +694,13 @@ async fn download_segment(
 }
 
 #[tauri::command]
-async fn verify_file_sha256(file_path: String) -> Result<String, String> {
-    let path = Path::new(&file_path);
-    if !path.exists() || !path.is_file() {
+async fn verify_file_sha256(app: AppHandle, file_path: String) -> Result<String, String> {
+    let resolved = resolve_destination_path(&app, &file_path);
+    if !resolved.exists() || !resolved.is_file() {
         return Err("Target file does not exist or is not a regular file".to_string());
     }
 
-    let mut file = tokio::fs::File::open(&file_path)
+    let mut file = tokio::fs::File::open(&resolved)
         .await
         .map_err(|e| format!("Cannot open file for hashing: {}", e))?;
 
@@ -611,23 +725,25 @@ async fn verify_file_sha256(file_path: String) -> Result<String, String> {
 
 #[tauri::command]
 async fn open_destination_folder(app: AppHandle, file_path: String) -> Result<(), String> {
-    let path = Path::new(&file_path);
-    if !path.exists() {
+    let target = resolve_destination_path(&app, &file_path);
+    if !target.exists() {
         return Err("Destination path does not exist".to_string());
     }
+    let target_str = target.to_string_lossy().to_string();
     app.opener()
-        .reveal_item_in_dir(&file_path)
+        .reveal_item_in_dir(&target_str)
         .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn open_file_item(app: AppHandle, file_path: String) -> Result<(), String> {
-    let path = Path::new(&file_path);
-    if !path.exists() {
+    let target = resolve_destination_path(&app, &file_path);
+    if !target.exists() {
         return Err("File does not exist on disk".to_string());
     }
+    let target_str = target.to_string_lossy().to_string();
     app.opener()
-        .open_path(&file_path, None::<&str>)
+        .open_path(&target_str, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
@@ -637,7 +753,7 @@ async fn delete_file_item(app: AppHandle, file_path: String) -> Result<(), Strin
     if clean.is_empty() {
         return Ok(());
     }
-    let target_path = Path::new(clean);
+    let target_path = resolve_destination_path(&app, clean);
     if !target_path.exists() {
         return Ok(());
     }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Otium Downloader Integration",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Lightning-fast download interception and context-menu accelerator for Otium Downloader.",
   "author": "XRTM8",
   "permissions": [

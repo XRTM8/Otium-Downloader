@@ -174,8 +174,8 @@ export class DownloadManager {
         total_bytes: number;
         is_finished: boolean;
       }>('download-progress', (event) => {
-        const { task_id, segment_index, delta_bytes, downloaded_bytes, is_finished } = event.payload;
-        this.handleTauriChunkProgress(task_id, segment_index, delta_bytes, downloaded_bytes, is_finished);
+        const { task_id, segment_index, delta_bytes, downloaded_bytes, total_bytes, is_finished } = event.payload;
+        this.handleTauriChunkProgress(task_id, segment_index, delta_bytes, downloaded_bytes, total_bytes, is_finished);
       });
 
       const unlistenBrowser = await listen<{
@@ -635,11 +635,11 @@ export class DownloadManager {
       void (async () => {
         try {
           const probeData = await this.probe(url, customHeaders);
-          const acceptRanges = probeData?.accept_ranges ?? true;
+          const acceptRanges = probeData?.accept_ranges ?? false;
 
           if (probeData?.content_length && probeData.content_length > 0) {
             task.totalBytes = probeData.content_length;
-          } else if (probeData) {
+          } else {
             task.totalBytes = 0;
           }
 
@@ -692,13 +692,20 @@ export class DownloadManager {
     if (!isTauri()) return;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const destinationPath = task.savePath || task.filename;
 
-      // 1. Prepare target file & directory
-      await invoke('prepare_download_file', {
-        destinationPath,
+      if (!task.chunks || task.chunks.length === 0) {
+        task.chunks = calculateSegments(task.totalBytes, 1);
+      }
+
+      // 1. Prepare target file & directory, obtaining canonical resolved absolute path
+      const resolvedPath = await invoke<string>('prepare_download_file', {
+        destinationPath: task.savePath || task.filename,
         totalBytes: task.totalBytes > 0 ? task.totalBytes : 0
       });
+      if (resolvedPath) {
+        task.savePath = resolvedPath;
+      }
+      const destinationPath = task.savePath || task.filename;
 
       // 2. Launch segments that are not yet finished
       const unfinishedChunks = task.chunks.filter((c) => c.status !== 'completed');
@@ -771,10 +778,15 @@ export class DownloadManager {
     segmentIndex: number,
     _deltaBytes: number,
     downloadedBytes: number,
+    totalBytes: number,
     isFinished: boolean
   ) {
     const task = this.tasks.get(taskId);
     if (!task) return;
+
+    if (totalBytes > 0 && (task.totalBytes <= 0 || task.totalBytes < totalBytes)) {
+      task.totalBytes = totalBytes;
+    }
 
     const chunk = task.chunks.find((c) => c.index === segmentIndex);
     if (chunk) {

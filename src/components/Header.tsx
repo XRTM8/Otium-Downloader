@@ -32,7 +32,7 @@ interface HeaderProps {
   onOpenAddModal: () => void;
 }
 
-const CURRENT_VERSION = '1.4.2';
+const CURRENT_VERSION = '1.4.3';
 
 export const Header: React.FC<HeaderProps> = ({
   stats,
